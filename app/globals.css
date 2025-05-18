@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cream text-navy;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+  p, ul, ol {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-sage text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-90 transition duration-200;
+  }
+  .btn-secondary {
+    @apply bg-terracotta text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-90 transition duration-200;
+  }
+  .input-field {
+    @apply border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sage focus:border-transparent;
+  }
+  .card {
+    @apply bg-white shadow-md rounded-lg overflow-hidden;
+  }
+}
+
+/* Print styles */
+@media print {
+  /* Hide navigation and non-essential elements */
+  nav, button, .hidden-print, footer {
+    display: none !important;
+  }
+  
+  /* Reset background colors for printing */
+  body, div {
+    background-color: white !important;
+    color: black !important;
+  }
+  
+  /* Ensure content is visible */
+  .max-w-4xl {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  /* Recipe header */
+  h1 {
+    font-size: 24pt !important;
+    margin-bottom: 10pt !important;
+  }
+  
+  /* Recipe metadata box */
+  .bg-sage {
+    border: 1px solid #ddd !important;
+    margin-bottom: 15pt !important;
+  }
+  
+  /* Focus on sections */
+  h2 {
+    font-size: 18pt !important;
+    margin-top: 15pt !important;
+    margin-bottom: 10pt !important;
+    border-bottom: 1px solid #ddd !important;
+  }
+  
+  /* Hide "You might also like" section and comments */
+  .border-t.border-gray-200, .print\\:hidden {
+    display: none !important;
+  }
+  
+  /* Two-column layout for print */
+  @page {
+    size: portrait;
+  }
+
+  /* Layout for ingredients and instructions */
+  .grid.md\\:grid-cols-2 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    column-gap: 2cm !important;
+  }
+  
+  /* Page breaks */
+  h2 {
+    break-before: auto;
+  }
+  
+  /* Print URL at the bottom of the page */
+  @page {
+    margin: 0.5in;
+  }
+  
+  /* Recipe metadata styles */
+  .print-recipe-meta {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: space-between !important;
+    padding: 0.5cm !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    margin-bottom: 1cm !important;
+  }
+  
+  /* Better print typography */
+  .print-recipe-title {
+    font-size: 28pt !important;
+    line-height: 1.2 !important;
+    margin-bottom: 0.5cm !important;
+  }
+  
+  .print-recipe-description {
+    font-size: 12pt !important;
+    margin-bottom: 0.7cm !important;
+  }
+  
+  /* Force background images to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

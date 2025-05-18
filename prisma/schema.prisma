@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String          @id @default(uuid())
+  name          String?
+  firstName     String?
+  lastName      String?
+  email         String          @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  accounts      Account[]
+  mealPlans     MealPlan[]
+  recipes       Recipe[]        // User-created recipes
+  savedRecipes  SavedRecipe[]
+  recipeComments RecipeComment[] // User's comments on recipes
+  sessions      Session[]
+  shoppingLists ShoppingList[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Recipe {
+  id                     String         @id @default(uuid())
+  title                  String
+  description            String
+  prepTime               Int
+  cookTime               Int
+  totalTime              Int
+  servings               Int
+  cuisineType            String?
+  imageUrl               String?
+  isAIGenerated          Boolean        @default(false)
+  tips                   String?
+  ingredients            String         // JSON string of ingredients
+  instructions           String         // JSON string of instructions
+  nutritionInfo          String?        // JSON string of nutrition info
+  estimatedCostPerServing Float?
+  userNotes              String?        // User's personal notes or modifications to the recipe
+  userId                 String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @default(now()) @updatedAt
+  mealPlanItems          MealPlanItem[]
+  savedBy                SavedRecipe[]
+  tags                   RecipeTag[]
+  comments               RecipeComment[]
+  user                   User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model RecipeComment {
+  id        String   @id @default(uuid())
+  content   String
+  recipeId  String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RecipeTag {
+  id       String @id @default(uuid())
+  name     String
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, name])
+}
+
+model SavedRecipe {
+  id        String   @id @default(uuid())
+  userId    String
+  recipeId  String
+  createdAt DateTime @default(now())
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+}
+
+model MealPlan {
+  id            String         @id @default(uuid())
+  userId        String
+  name          String
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         MealPlanItem[]
+  shoppingLists ShoppingList[]
+}
+
+model MealPlanItem {
+  id         String   @id @default(uuid())
+  mealPlanId String
+  recipeId   String
+  date       DateTime
+  mealType   String
+  mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+}
+
+model ShoppingList {
+  id          String             @id @default(uuid())
+  name        String
+  userId      String
+  mealPlanId  String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealPlan    MealPlan?          @relation(fields: [mealPlanId], references: [id], onDelete: SetNull)
+  items       ShoppingListItem[]
+}
+
+model ShoppingListItem {
+  id              String       @id @default(uuid())
+  shoppingListId  String
+  name            String
+  quantity        String
+  unit            String?
+  category        String       // e.g., "produce", "dairy", "pantry"
+  checked         Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  shoppingList    ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+}

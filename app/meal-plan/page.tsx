@@ -1,0 +1,556 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import RecipeSearchSidebar from '../components/RecipeSearchSidebar';
+
+// Define Recipe interface
+interface Recipe {
+  id: string;
+  title: string;
+  prepTime: number;
+  cookTime: number;
+  totalTime: number;
+  servings: number;
+  estimatedCostPerServing?: number;
+  tags?: string[];
+}
+
+// Mock data for meal plan - in a real app, this would come from an API
+const mockMealPlan = {
+  startDate: new Date('2025-05-20'),
+  endDate: new Date('2025-05-26'),
+  meals: [
+    {
+      id: '1',
+      day: 'Monday',
+      date: new Date('2025-05-20'),
+      meals: [
+        {
+          id: 'breakfast-1',
+          type: 'BREAKFAST',
+          recipe: {
+            id: '101',
+            title: 'Avocado Toast with Poached Eggs',
+            prepTime: 5,
+            cookTime: 10,
+            totalTime: 15,
+            servings: 2,
+            estimatedCostPerServing: 2.25,
+            tags: ['breakfast', 'quick', 'vegetarian']
+          }
+        },
+        {
+          id: 'lunch-1',
+          type: 'LUNCH',
+          recipe: null
+        },
+        {
+          id: 'dinner-1',
+          type: 'DINNER',
+          recipe: {
+            id: '1',
+            title: 'Mediterranean Lemon Herb Chicken with Spring Vegetables',
+            prepTime: 10,
+            cookTime: 20,
+            totalTime: 30,
+            servings: 4,
+            estimatedCostPerServing: 3.75,
+            tags: ['dinner', 'healthy', 'spring']
+          }
+        }
+      ]
+    },
+    {
+      id: '2',
+      day: 'Tuesday',
+      date: new Date('2025-05-21'),
+      meals: [
+        {
+          id: 'breakfast-2',
+          type: 'BREAKFAST',
+          recipe: null
+        },
+        {
+          id: 'lunch-2',
+          type: 'LUNCH',
+          recipe: {
+            id: '102',
+            title: 'Spring Vegetable Soup',
+            prepTime: 10,
+            cookTime: 20,
+            totalTime: 30,
+            servings: 4,
+            estimatedCostPerServing: 1.75,
+            tags: ['lunch', 'soup', 'spring', 'vegetarian']
+          }
+        },
+        {
+          id: 'dinner-2',
+          type: 'DINNER',
+          recipe: {
+            id: '2',
+            title: 'Spring Asparagus Risotto',
+            prepTime: 15,
+            cookTime: 30,
+            totalTime: 45,
+            servings: 4,
+            estimatedCostPerServing: 2.50,
+            tags: ['dinner', 'vegetarian', 'spring']
+          }
+        }
+      ]
+    },
+    {
+      id: '3',
+      day: 'Wednesday',
+      date: new Date('2025-05-22'),
+      meals: [
+        {
+          id: 'breakfast-3',
+          type: 'BREAKFAST',
+          recipe: null
+        },
+        {
+          id: 'lunch-3',
+          type: 'LUNCH',
+          recipe: null
+        },
+        {
+          id: 'dinner-3',
+          type: 'DINNER',
+          recipe: null
+        }
+      ]
+    },
+    {
+      id: '4',
+      day: 'Thursday',
+      date: new Date('2025-05-23'),
+      meals: [
+        {
+          id: 'breakfast-4',
+          type: 'BREAKFAST',
+          recipe: null
+        },
+        {
+          id: 'lunch-4',
+          type: 'LUNCH',
+          recipe: null
+        },
+        {
+          id: 'dinner-4',
+          type: 'DINNER',
+          recipe: null
+        }
+      ]
+    },
+    {
+      id: '5',
+      day: 'Friday',
+      date: new Date('2025-05-24'),
+      meals: [
+        {
+          id: 'breakfast-5',
+          type: 'BREAKFAST',
+          recipe: null
+        },
+        {
+          id: 'lunch-5',
+          type: 'LUNCH',
+          recipe: null
+        },
+        {
+          id: 'dinner-5',
+          type: 'DINNER',
+          recipe: null
+        }
+      ]
+    },
+    {
+      id: '6',
+      day: 'Saturday',
+      date: new Date('2025-05-25'),
+      meals: [
+        {
+          id: 'breakfast-6',
+          type: 'BREAKFAST',
+          recipe: null
+        },
+        {
+          id: 'lunch-6',
+          type: 'LUNCH',
+          recipe: null
+        },
+        {
+          id: 'dinner-6',
+          type: 'DINNER',
+          recipe: null
+        }
+      ]
+    },
+    {
+      id: '7',
+      day: 'Sunday',
+      date: new Date('2025-05-26'),
+      meals: [
+        {
+          id: 'breakfast-7',
+          type: 'BREAKFAST',
+          recipe: null
+        },
+        {
+          id: 'lunch-7',
+          type: 'LUNCH',
+          recipe: null
+        },
+        {
+          id: 'dinner-7',
+          type: 'DINNER',
+          recipe: null
+        }
+      ]
+    }
+  ]
+};
+
+export default function MealPlanPage() {
+  const [mealPlan, setMealPlan] = useState(mockMealPlan);
+  const [activeDay, setActiveDay] = useState(mockMealPlan.meals[0].id);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedMealType, setSelectedMealType] = useState<string | undefined>();
+  const [selectedDayId, setSelectedDayId] = useState<string | undefined>();
+  
+  const handleGenerateShoppingList = () => {
+    // In a real app, this would call an API to create a shopping list
+    // For now, just navigate to the shopping list page
+    router.push('/shopping-list');
+  };
+  
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+  
+  const handleAddRecipe = (dayId: string, mealType: string) => {
+    // Open sidebar and set the selected day and meal type
+    setSelectedDayId(dayId);
+    setSelectedMealType(mealType);
+    setSidebarOpen(true);
+  };
+  
+  const handleSelectRecipe = (recipe: Recipe, mealType: string, dayId: string) => {
+    // Find the day and update the recipe for the specified meal type
+    setMealPlan(prevMealPlan => {
+      const updatedMeals = prevMealPlan.meals.map(day => {
+        if (day.id === dayId) {
+          const updatedDayMeals = day.meals.map(meal => {
+            if (meal.type === mealType.toUpperCase()) {
+              return { ...meal, recipe };
+            }
+            return meal;
+          });
+          return { ...day, meals: updatedDayMeals };
+        }
+        return day;
+      });
+      
+      return { ...prevMealPlan, meals: updatedMeals };
+    });
+    
+    // Close the sidebar after selecting a recipe
+    setSidebarOpen(false);
+  };
+  
+  const handleCloseSidebar = () => {
+    setSidebarOpen(false);
+    setSelectedMealType(undefined);
+    setSelectedDayId(undefined);
+  };
+  
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-serif font-bold text-navy mb-2">
+            Meal Plan
+          </h1>
+          <p className="text-lg text-gray-600">
+            Week of {formatDate(mealPlan.startDate)} - {formatDate(mealPlan.endDate)}
+          </p>
+        </div>
+        <div className="flex gap-4">
+          <Link href="/recipes" className="btn-secondary">
+            Browse Recipes
+          </Link>
+          <button onClick={handleGenerateShoppingList} className="btn-primary">
+            Generate Shopping List
+          </button>
+        </div>
+      </div>
+      
+      <div className="grid md:grid-cols-8 gap-2 mb-8">
+        <div className="md:col-span-1"></div>
+        {mealPlan.meals.map(day => (
+          <button
+            key={day.id}
+            onClick={() => setActiveDay(day.id)}
+            className={`p-2 text-center rounded-t-lg transition ${
+              activeDay === day.id
+                ? 'bg-sage text-white font-medium'
+                : 'bg-cream hover:bg-gray-200'
+            }`}
+          >
+            <div className="text-sm">{day.day.substring(0, 3)}</div>
+            <div className="text-xs">{formatDate(day.date)}</div>
+          </button>
+        ))}
+      </div>
+      
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="grid md:grid-cols-8 border-b border-gray-200">
+          <div className="md:col-span-1 py-3 px-4 bg-gray-50 font-medium">Meal</div>
+          {mealPlan.meals.map(day => (
+            <div 
+              key={day.id} 
+              className={`py-3 px-4 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''}`}
+            >
+              {day.day}
+            </div>
+          ))}
+        </div>
+        
+        {/* Breakfast row */}
+        <div className="grid md:grid-cols-8 border-b border-gray-200">
+          <div className="md:col-span-1 py-3 px-4 bg-gray-50 font-medium">Breakfast</div>
+          {mealPlan.meals.map(day => (
+            <div 
+              key={day.id} 
+              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''}`}
+            >
+              {day.meals.find(meal => meal.type === 'BREAKFAST')?.recipe ? (
+                <div className="p-2 bg-cream rounded">
+                  <div className="font-medium text-sm mb-1">
+                    {day.meals.find(meal => meal.type === 'BREAKFAST')?.recipe?.title}
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-600">
+                    <span>{day.meals.find(meal => meal.type === 'BREAKFAST')?.recipe?.totalTime} min</span>
+                    <span>${day.meals.find(meal => meal.type === 'BREAKFAST')?.recipe?.estimatedCostPerServing?.toFixed(2)}/serving</span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleAddRecipe(day.id, 'Breakfast')}
+                  className="w-full h-full flex items-center justify-center text-sm text-gray-400 hover:text-sage"
+                >
+                  + Add Recipe
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        {/* Lunch row */}
+        <div className="grid md:grid-cols-8 border-b border-gray-200">
+          <div className="md:col-span-1 py-3 px-4 bg-gray-50 font-medium">Lunch</div>
+          {mealPlan.meals.map(day => (
+            <div 
+              key={day.id} 
+              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''}`}
+            >
+              {day.meals.find(meal => meal.type === 'LUNCH')?.recipe ? (
+                <div className="p-2 bg-cream rounded">
+                  <div className="font-medium text-sm mb-1">
+                    {day.meals.find(meal => meal.type === 'LUNCH')?.recipe?.title}
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-600">
+                    <span>{day.meals.find(meal => meal.type === 'LUNCH')?.recipe?.totalTime} min</span>
+                    <span>${day.meals.find(meal => meal.type === 'LUNCH')?.recipe?.estimatedCostPerServing?.toFixed(2)}/serving</span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleAddRecipe(day.id, 'Lunch')}
+                  className="w-full h-full flex items-center justify-center text-sm text-gray-400 hover:text-sage"
+                >
+                  + Add Recipe
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        {/* Dinner row */}
+        <div className="grid md:grid-cols-8">
+          <div className="md:col-span-1 py-3 px-4 bg-gray-50 font-medium">Dinner</div>
+          {mealPlan.meals.map(day => (
+            <div 
+              key={day.id} 
+              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''}`}
+            >
+              {day.meals.find(meal => meal.type === 'DINNER')?.recipe ? (
+                <div className="p-2 bg-cream rounded">
+                  <div className="font-medium text-sm mb-1">
+                    {day.meals.find(meal => meal.type === 'DINNER')?.recipe?.title}
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-600">
+                    <span>{day.meals.find(meal => meal.type === 'DINNER')?.recipe?.totalTime} min</span>
+                    <span>${day.meals.find(meal => meal.type === 'DINNER')?.recipe?.estimatedCostPerServing?.toFixed(2)}/serving</span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleAddRecipe(day.id, 'Dinner')}
+                  className="w-full h-full flex items-center justify-center text-sm text-gray-400 hover:text-sage"
+                >
+                  + Add Recipe
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <div className="mt-12">
+        <h2 className="text-2xl font-serif font-bold text-navy mb-6">Cost Estimate</h2>
+        
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="grid md:grid-cols-7 gap-4">
+            {mealPlan.meals.map(day => {
+              // Calculate total cost for the day
+              const dayCost = day.meals.reduce((total, meal) => {
+                if (meal.recipe?.estimatedCostPerServing) {
+                  return total + (meal.recipe.estimatedCostPerServing * meal.recipe.servings);
+                }
+                return total;
+              }, 0);
+              
+              return (
+                <div key={day.id} className="bg-cream p-4 rounded-lg">
+                  <h3 className="font-medium mb-2">{day.day.substring(0, 3)}</h3>
+                  <div className="text-2xl font-medium text-navy">${dayCost.toFixed(2)}</div>
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="mt-6 p-4 border-t border-gray-200">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-medium">Weekly Total:</span>
+              <span className="text-2xl font-medium text-navy">
+                $
+                {mealPlan.meals.reduce((total, day) => {
+                  return total + day.meals.reduce((dayTotal, meal) => {
+                    if (meal.recipe?.estimatedCostPerServing) {
+                      return dayTotal + (meal.recipe.estimatedCostPerServing * meal.recipe.servings);
+                    }
+                    return dayTotal;
+                  }, 0);
+                }, 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-12">
+        <h2 className="text-2xl font-serif font-bold text-navy mb-6">Nutritional Balance</h2>
+        
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <p className="text-gray-600 mb-6">
+            This feature will show nutritional information for your planned meals in the full version.
+          </p>
+          
+          <div className="grid md:grid-cols-4 gap-6">
+            <div className="bg-cream p-4 rounded-lg">
+              <h3 className="font-medium mb-2">Calories</h3>
+              <div className="h-4 bg-gray-200 rounded-full">
+                <div 
+                  className="h-4 bg-sage rounded-full" 
+                  style={{ width: '45%' }}
+                ></div>
+              </div>
+              <div className="flex justify-between mt-2 text-xs">
+                <span>0</span>
+                <span className="font-medium">1200 / 2000</span>
+              </div>
+            </div>
+            
+            <div className="bg-cream p-4 rounded-lg">
+              <h3 className="font-medium mb-2">Protein</h3>
+              <div className="h-4 bg-gray-200 rounded-full">
+                <div 
+                  className="h-4 bg-sage rounded-full" 
+                  style={{ width: '60%' }}
+                ></div>
+              </div>
+              <div className="flex justify-between mt-2 text-xs">
+                <span>0</span>
+                <span className="font-medium">75g / 125g</span>
+              </div>
+            </div>
+            
+            <div className="bg-cream p-4 rounded-lg">
+              <h3 className="font-medium mb-2">Carbs</h3>
+              <div className="h-4 bg-gray-200 rounded-full">
+                <div 
+                  className="h-4 bg-sage rounded-full" 
+                  style={{ width: '30%' }}
+                ></div>
+              </div>
+              <div className="flex justify-between mt-2 text-xs">
+                <span>0</span>
+                <span className="font-medium">90g / 300g</span>
+              </div>
+            </div>
+            
+            <div className="bg-cream p-4 rounded-lg">
+              <h3 className="font-medium mb-2">Fat</h3>
+              <div className="h-4 bg-gray-200 rounded-full">
+                <div 
+                  className="h-4 bg-sage rounded-full" 
+                  style={{ width: '50%' }}
+                ></div>
+              </div>
+              <div className="flex justify-between mt-2 text-xs">
+                <span>0</span>
+                <span className="font-medium">40g / 80g</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-8 text-center">
+        <Link 
+          href="/recipe-generator" 
+          className="inline-flex items-center text-sage hover:underline"
+        >
+          Need inspiration? Generate new recipe ideas
+          <svg 
+            className="ml-1 w-4 h-4" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M9 5l7 7-7 7" 
+            />
+          </svg>
+        </Link>
+      </div>
+      
+      {/* Recipe Search Sidebar */}
+      <RecipeSearchSidebar
+        isOpen={sidebarOpen}
+        onClose={handleCloseSidebar}
+        onSelectRecipe={handleSelectRecipe}
+        selectedMealType={selectedMealType}
+        selectedDayId={selectedDayId}
+      />
+    </div>
+  );
+}
