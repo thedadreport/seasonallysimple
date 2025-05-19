@@ -1,8 +1,8 @@
-// File: /Users/patricklyne/Downloads/SeasonallySimple/app/api/auth/login/route.ts
-import * as entry from '../../../../../../app/api/auth/login/route.js'
+// File: /Users/patricklyne/Downloads/SeasonallySimple/app/api/recipes/generate/route.ts
+import * as entry from '../../../../../../app/api/recipes/generate/route.js'
 import type { NextRequest } from 'next/server.js'
 
-type TEntry = typeof import('../../../../../../app/api/auth/login/route.js')
+type TEntry = typeof import('../../../../../../app/api/recipes/generate/route.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{

@@ -1,6 +1,7 @@
 {
+  "/api/recipes/generate/route": "app/api/recipes/generate/route.js",
+  "/recipe-generator/page": "app/recipe-generator/page.js",
+  "/meal-plan/page": "app/meal-plan/page.js",
   "/page": "app/page.js",
-  "/login/page": "app/login/page.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
-  "/api/auth/login/route": "app/api/auth/login/route.js"
+  "/recipes/page": "app/recipes/page.js"
 }
