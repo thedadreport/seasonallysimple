@@ -1,5 +1,8 @@
-// NextAuth.js App Router configuration for v5
+import NextAuth from "next-auth/next";
 import { authOptions } from "@/lib/auth/authOptions";
 
-// Use direct exports instead of the handler pattern for NextAuth v5
-export const { GET, POST } = authOptions;
+// Create a handler for NextAuth v5
+const handler = NextAuth(authOptions);
+
+// Export the handler as GET and POST
+export { handler as GET, handler as POST };
