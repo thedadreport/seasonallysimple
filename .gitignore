@@ -9,6 +9,7 @@
 
 # next.js
 /.next/
+**/.next/
 /out/
 
 # production
@@ -17,6 +18,9 @@
 # misc
 .DS_Store
 *.pem
+*.zip
+GitHubDesktop*.zip
+DesignUI.pdf
 
 # debug
 npm-debug.log*
