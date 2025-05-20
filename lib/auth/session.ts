@@ -1,14 +1,12 @@
-import { getServerSession as authGetServerSession } from "next-auth";
+import { getSession as authGetSession } from "next-auth/react";
+import { getServerSession } from "next-auth";
 import { authOptions } from "./authOptions";
 
 export async function getSession() {
-  return await authGetServerSession(authOptions);
+  return await getServerSession(authOptions);
 }
 
-// Export getServerSession wrapper for API routes
-export async function getServerSessionWrapper() {
-  return await authGetServerSession(authOptions);
-}
+//Remove this function as it's no longer needed
 
 export async function getCurrentUser() {
   const session = await getSession();
