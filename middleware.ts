@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth } from 'next-auth/middleware';
+import { getToken } from 'next-auth/jwt';
 
 // List of paths that require authentication
 const protectedPaths = [
@@ -28,8 +28,9 @@ export async function middleware(request: NextRequest) {
     pathname === path || pathname.startsWith(`${path}/`)
   );
   
-  // Get the session using Next-Auth middleware
-  const session = await auth({ req: request });
+  // Get the session token using Next-Auth JWT
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  const session = !!token;
   
   // Redirect logic
   if (isProtectedPath && !session) {

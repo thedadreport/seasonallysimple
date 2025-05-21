@@ -1,3 +1,6 @@
-// Use the simplified export pattern from NextAuth v5
-// This directly exports the handlers from our auth.ts configuration
-export { handlers as GET, handlers as POST } from "@/auth";
+// Import the handlers from the auth configuration
+import { handlers } from "@/auth";
+
+// Export the handler functions directly according to Next.js App Router conventions
+export const GET = handlers;
+export const POST = handlers;
