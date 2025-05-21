@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import RecipeSearchSidebar from '../components/RecipeSearchSidebar';
 
 // Define Recipe interface
@@ -215,6 +216,7 @@ const mockMealPlan = {
 };
 
 export default function MealPlanPage() {
+  const router = useRouter();
   const [mealPlan, setMealPlan] = useState(mockMealPlan);
   const [activeDay, setActiveDay] = useState(mockMealPlan.meals[0].id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
