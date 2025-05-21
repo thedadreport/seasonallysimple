@@ -15,8 +15,8 @@ const prisma = new PrismaClient();
 
 // NextAuth configuration
 export const authOptions: NextAuthOptions = {
-  // Only use adapter in production, not in development
-  ...(isDevelopmentMode ? {} : { adapter: PrismaAdapter(prisma) }),
+  // DEPLOYMENT CHANGE: Always use adapter in production
+  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -33,10 +33,11 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Special case for development mode - let all logins through
+        // DEPLOYMENT CHANGE: Disabled development mode authentication bypass
+        // In production, we always validate against the database
+        // Development mode bypass was commented out for production deployment
+        /*
         if (isDevelopmentMode) {
-          // Allow login with any credentials in development mode
-          // This is a security risk in production!
           console.log('DEVELOPMENT MODE: All login credentials accepted');
           
           return {
@@ -45,6 +46,7 @@ export const authOptions: NextAuthOptions = {
             name: "Development User",
           };
         }
+        */
         
         try {
           const user = await prisma.user.findUnique({

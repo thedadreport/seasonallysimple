@@ -8,8 +8,8 @@ const protectedPaths = [
   '/saved-recipes',
   '/settings',
   '/upload-recipe',
-  // Comment out shopping-list for testing
-  // '/shopping-list'
+  // DEPLOYMENT CHANGE: Enabled authentication protection for shopping list
+  '/shopping-list'
 ];
 
 // List of paths that are only for unauthenticated users
@@ -57,8 +57,8 @@ export const config = {
     '/profile/:path*',
     '/saved-recipes/:path*',
     '/settings/:path*',
-    '/upload-recipe/:path*'
-    // Comment out for testing
-    // '/shopping-list/:path*'
+    '/upload-recipe/:path*',
+    // DEPLOYMENT CHANGE: Added matcher for shopping list path
+    '/shopping-list/:path*'
   ]
 };

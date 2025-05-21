@@ -121,10 +121,15 @@ IMPORTANT: Return your response in a strict JSON format with the following field
 
 Ensure that your response is only valid JSON with no preamble or additional text outside the JSON structure.`;
 
-  // Check if we're in a development environment without API key
+  // DEPLOYMENT CHANGE: Only use mock data in development, always use real API in production
   if (process.env.NODE_ENV === 'development' && !process.env.CLAUDE_API_KEY) {
     console.warn('CLAUDE_API_KEY not found in environment variables. Using mock data in development.');
     return getMockRecipe(params);
+  }
+  
+  // In production, throw error if API key is missing
+  if (process.env.NODE_ENV === 'production' && !process.env.CLAUDE_API_KEY) {
+    throw new Error('Claude API key is required in production environment');
   }
   
   const apiUrl = process.env.CLAUDE_API_URL || 'https://api.anthropic.com/v1/messages';

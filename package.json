@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "postgres:setup": "node scripts/install-postgres-deps.js"
+    "postgres:setup": "node scripts/install-postgres-deps.js",
+    "post-deployment": "node scripts/post-deployment.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
