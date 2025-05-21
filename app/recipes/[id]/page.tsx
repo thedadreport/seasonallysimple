@@ -3,8 +3,36 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+// Define Recipe interface with optional userNotes
+interface Recipe {
+  id: string;
+  title: string;
+  description: string;
+  prepTime: number;
+  cookTime: number;
+  totalTime: number;
+  servings: number;
+  difficulty: string;
+  season: string;
+  cuisineType: string;
+  dietaryTags: string[];
+  isAIGenerated: boolean;
+  ingredients: { amount: string; unit: string; name: string }[];
+  instructions: { stepNumber: number; text: string }[];
+  nutritionInfo: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber: number;
+    sodium: number;
+  };
+  tips: string;
+  userNotes?: string; // Optional user notes field
+}
+
 // Mock recipe data - in a real app, this would come from an API call
-const mockRecipes = {
+const mockRecipes: Record<string, Recipe> = {
   '1': {
     id: '1',
     title: 'Mediterranean Lemon Herb Chicken with Spring Vegetables',
@@ -106,7 +134,7 @@ const mockRecipes = {
 };
 
 export default function RecipeDetail({ params }: { params: { id: string } }) {
-  const [recipe, setRecipe] = useState<any>(null);
+  const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
   const [servings, setServings] = useState(0);
