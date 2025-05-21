@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSessionWrapper as getServerSession } from '@/lib/auth/session';
+import { getServerSessionWrapper } from '@/lib/auth/session';
+import { authOptions } from '@/lib/auth/authOptions';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -69,7 +70,7 @@ function categorizeIngredient(name: string): string {
 // POST - Create a new shopping list from meal plan
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSessionWrapper();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest) {
 // GET - Get all shopping lists for the current user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSessionWrapper();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

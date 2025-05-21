@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSessionWrapper as getServerSession } from '@/lib/auth/session';
+import { getServerSessionWrapper } from '@/lib/auth/session';
+import { authOptions } from '@/lib/auth/authOptions';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -13,7 +14,7 @@ interface Params {
 // POST - Add an item to a shopping list
 export async function POST(request: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSessionWrapper();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 // PUT - Update items in a shopping list (check/uncheck)
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSessionWrapper();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

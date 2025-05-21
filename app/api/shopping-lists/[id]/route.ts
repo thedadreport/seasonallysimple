@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSessionWrapper as getServerSession } from '@/lib/auth/session';
+import { getServerSessionWrapper } from '@/lib/auth/session';
+import { authOptions } from '@/lib/auth/authOptions';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -13,7 +14,7 @@ interface Params {
 // GET - Get a specific shopping list by ID
 export async function GET(request: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSessionWrapper();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 // PUT - Update a shopping list
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSessionWrapper();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -100,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 // DELETE - Delete a shopping list
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSessionWrapper();
     
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
