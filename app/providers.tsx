@@ -9,7 +9,7 @@ const mockSession = {
     id: "mock-user-id",
     name: "Test User",
     email: "test@example.com",
-    image: null
+    image: undefined
   }
 };
 
