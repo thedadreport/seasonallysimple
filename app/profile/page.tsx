@@ -165,7 +165,7 @@ export default function ProfilePage() {
                         value={formData.email}
                         onChange={(e) => setFormData({...formData, email: e.target.value})}
                         className="w-full input-field"
-                        disabled={session?.user?.email && session.user.email.includes('@')}
+                        disabled={!!(session?.user?.email && session.user.email.includes('@'))}
                       />
                       {session?.user?.email && session.user.email.includes('@') && 
                         <p className="text-xs text-gray-500 mt-1">Email cannot be changed for social login accounts</p>
