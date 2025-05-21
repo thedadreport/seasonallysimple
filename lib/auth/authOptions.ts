@@ -1,4 +1,4 @@
-import type { AuthOptions } from "next-auth";
+import type { NextAuthOptions } from "next-auth/next";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -14,7 +14,7 @@ const isDevelopmentMode = process.env.NODE_ENV === 'development';
 const prisma = new PrismaClient();
 
 // NextAuth configuration
-const authOptions: AuthOptions = {
+const authOptions: NextAuthOptions = {
   // DEPLOYMENT CHANGE: Always use adapter in production
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -49,15 +49,17 @@ const authOptions: AuthOptions = {
         */
         
         try {
+          const email = credentials.email as string;
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+            where: { email },
           });
 
           if (!user || !user.password) {
             return null;
           }
 
-          const isPasswordValid = await compare(credentials.password, user.password);
+          const password = credentials.password as string;
+          const isPasswordValid = await compare(password, user.password);
 
           if (!isPasswordValid) {
             return null;
