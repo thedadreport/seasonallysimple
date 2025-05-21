@@ -14,7 +14,7 @@ const isDevelopmentMode = process.env.NODE_ENV === 'development';
 const prisma = new PrismaClient();
 
 // NextAuth configuration
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   // DEPLOYMENT CHANGE: Always use adapter in production
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -91,3 +91,5 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
+
+export default authOptions;
