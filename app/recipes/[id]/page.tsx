@@ -210,11 +210,14 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
   const handleSaveNotes = () => {
     // In a real app, this would be an API call to update the recipe
     setIsEditing(false);
+    
     // Update the recipe object with new notes
-    setRecipe({
-      ...recipe,
-      userNotes: userNotes
-    });
+    if (recipe) {
+      setRecipe({
+        ...recipe,
+        userNotes: userNotes
+      });
+    }
     
     // Mock API call success message
     alert('Your notes have been saved!');
