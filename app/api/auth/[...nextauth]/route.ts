@@ -1,6 +1,11 @@
-// Import the handlers from the auth configuration
-import { handlers } from "@/auth";
+// In NextAuth v5 with the App Router, we need to properly handle requests
+import { auth } from "@/auth";
 
-// Export the handler functions directly according to Next.js App Router conventions
-export const GET = handlers;
-export const POST = handlers;
+// Create handler functions that call the auth() function correctly
+export async function GET(request: Request) {
+  return await auth(request);
+}
+
+export async function POST(request: Request) {
+  return await auth(request);
+}
