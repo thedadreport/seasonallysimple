@@ -1,4 +1,4 @@
-import { NextAuthOptions } from "next-auth";
+import type { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -14,7 +14,7 @@ const isDevelopmentMode = process.env.NODE_ENV === 'development';
 const prisma = new PrismaClient();
 
 // NextAuth configuration
-const authOptions: NextAuthOptions = {
+const authOptions: AuthOptions = {
   // DEPLOYMENT CHANGE: Always use adapter in production
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -83,7 +83,7 @@ const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: any }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
       }
