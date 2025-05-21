@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 const recipeSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
+  servings: z.number().min(1, "At least 1 serving is required"),
   timings: z.object({
     prep: z.number().min(0, "Prep time can't be negative"),
     cook: z.number().min(0, "Cook time can't be negative"),
@@ -39,7 +40,6 @@ const recipeSchema = z.object({
   }).optional(),
   tips: z.string().optional(),
   cuisineType: z.string().optional(),
-  servings: z.number().min(1).default(4),
   estimatedCostPerServing: z.number().optional(),
   tags: z.array(z.string()).optional(),
 });
@@ -181,6 +181,9 @@ export default function UploadRecipePage() {
     return null;
   }
 
+  // Type-safe submission handler
+  const typeSafeSubmit = handleSubmit((data: RecipeFormValues) => onSubmit(data));
+
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-serif font-bold text-navy mb-8">Upload Your Recipe</h1>
@@ -191,7 +194,7 @@ export default function UploadRecipePage() {
         </div>
       )}
       
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 bg-white p-6 rounded-lg shadow-md">
+      <form onSubmit={typeSafeSubmit} className="space-y-8 bg-white p-6 rounded-lg shadow-md">
         {/* Recipe Basics */}
         <div className="space-y-4">
           <h2 className="text-xl font-medium text-navy">Recipe Basics</h2>
