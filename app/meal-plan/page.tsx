@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import RecipeSearchSidebar from '../components/RecipeSearchSidebar';
 
-// Define Recipe interface
+// Define interfaces for our data model
 interface Recipe {
   id: string;
   title: string;
@@ -15,6 +15,25 @@ interface Recipe {
   servings: number;
   estimatedCostPerServing?: number;
   tags?: string[];
+}
+
+interface Meal {
+  id: string;
+  type: string;
+  recipe: Recipe | null;
+}
+
+interface DayPlan {
+  id: string;
+  day: string;
+  date: Date;
+  meals: Meal[];
+}
+
+interface MealPlan {
+  startDate: Date;
+  endDate: Date;
+  meals: DayPlan[];
 }
 
 // Mock data for meal plan - in a real app, this would come from an API
@@ -217,7 +236,7 @@ const mockMealPlan = {
 
 export default function MealPlanPage() {
   const router = useRouter();
-  const [mealPlan, setMealPlan] = useState(mockMealPlan);
+  const [mealPlan, setMealPlan] = useState<MealPlan>(mockMealPlan);
   const [activeDay, setActiveDay] = useState(mockMealPlan.meals[0].id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedMealType, setSelectedMealType] = useState<string | undefined>();
@@ -242,7 +261,7 @@ export default function MealPlanPage() {
   
   const handleSelectRecipe = (recipe: Recipe, mealType: string, dayId: string) => {
     // Find the day and update the recipe for the specified meal type
-    setMealPlan(prevMealPlan => {
+    setMealPlan((prevMealPlan: MealPlan): MealPlan => {
       const updatedMeals = prevMealPlan.meals.map(day => {
         if (day.id === dayId) {
           const updatedDayMeals = day.meals.map(meal => {
