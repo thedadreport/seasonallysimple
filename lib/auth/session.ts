@@ -1,6 +1,6 @@
 import { getSession as authGetSession } from "next-auth/react";
-// Fix for NextAuth v5 beta - import from next-auth/edge instead of next-auth
-import { getServerSession } from "next-auth";
+// Fix for NextAuth v5 beta - getServerSession is now in next-auth/next
+import { getServerSession } from "next-auth/next";
 import { authOptions } from "./authOptions";
 
 // Fix for NextAuth v5 - use getServerSession for compatibility
