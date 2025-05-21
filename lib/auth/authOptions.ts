@@ -1,4 +1,5 @@
-import type { NextAuthOptions } from "next-auth/next";
+// Use a type from @auth/core which doesn't have the import error
+import type { AuthConfig } from "@auth/core";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -14,7 +15,7 @@ const isDevelopmentMode = process.env.NODE_ENV === 'development';
 const prisma = new PrismaClient();
 
 // NextAuth configuration
-const authOptions: NextAuthOptions = {
+const authOptions: AuthConfig = {
   // DEPLOYMENT CHANGE: Always use adapter in production
   adapter: PrismaAdapter(prisma),
   providers: [
