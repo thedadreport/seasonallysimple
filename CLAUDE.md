@@ -9,13 +9,14 @@ Seasonally Simple is an AI-powered recipe app that uses Claude 3.7 Sonnet to gen
 - Created comprehensive deployment guide in DEPLOYMENT.md
 
 ## Next Development Tasks
-- Deploy application to live environment using instructions in DEPLOYMENT.md
+- Deploy application to live environment using instructions in DEPLOYMENT.md ✅
 - Restore real authentication after family testing is complete
 - Implement user feedback from testing into UI improvements
 - Enhance shopping list with additional features (sorting, favorites, etc.)
 - Add recipe rating and review functionality
 - Improve mobile responsiveness for shopping list interface
 - Optimize Claude API usage with caching for common recipes
+- Verify Next.js/NextAuth v5 compatibility in deployed environment
 
 ## Important Commands
 
@@ -136,3 +137,4 @@ A comprehensive deployment guide has been created in DEPLOYMENT.md with:
 - Post-deployment verification steps
 - Troubleshooting common issues
 - Scaling and maintenance recommendations
+- NextAuth v5 specific configuration notes
