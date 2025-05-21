@@ -1,10 +1,5 @@
-// Import the auth handler from our auth.ts configuration
-import NextAuth from "next-auth";
-import authOptions from "@/lib/auth/authOptions";
+// Standard NextAuth API route handler for Next.js App Router
+import { handlers } from "@/auth";
 
-// NextAuth v5 handler
-const handler = NextAuth(authOptions);
-
-// Export the handler as GET and POST functions
-export const GET = handler;
-export const POST = handler;
+// These are ready-to-use API route handlers that NextAuth provides
+export const { GET, POST } = handlers;

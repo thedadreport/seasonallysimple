@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import type { NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
@@ -10,7 +11,8 @@ const isDevelopmentMode = process.env.NODE_ENV === 'development';
 
 const prisma = new PrismaClient();
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+// NextAuth configuration
+const authConfig: NextAuthConfig = {
   // Always use adapter in production
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -71,4 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-});
+};
+
+// Create the auth handlers using the configuration
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
