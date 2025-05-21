@@ -1,16 +1,15 @@
 import { getSession as authGetSession } from "next-auth/react";
-// Fix for NextAuth v5 beta - getServerSession is now in next-auth/next
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "./authOptions";
+// Import auth() function from central auth.ts file
+import { auth } from "@/auth";
 
-// Fix for NextAuth v5 - use getServerSession for compatibility
+// Use auth() function from NextAuth v5
 export async function getSession() {
-  return await getServerSession(authOptions);
+  return await auth();
 }
 
 // This is the wrapper function that's being imported in API routes
 export async function getServerSessionWrapper() {
-  return await getServerSession(authOptions);
+  return await auth();
 }
 
 export async function getCurrentUser() {
