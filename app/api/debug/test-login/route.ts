@@ -34,10 +34,15 @@ export async function GET(request: Request) {
     }
     
     if (!user.password) {
+      // Check if there are OAuth accounts - we need to fetch them separately
+      const accounts = await prisma.account.findMany({
+        where: { userId: user.id }
+      });
+      
       return NextResponse.json({
         success: false,
         error: 'User has no password set',
-        debug: { hasOAuth: !!user.accounts?.length }
+        debug: { hasOAuth: accounts.length > 0 }
       }, { status: 400 });
     }
     
