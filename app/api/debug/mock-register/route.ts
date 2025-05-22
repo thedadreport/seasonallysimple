@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hash } from "bcrypt";
+import { hash } from "bcryptjs";
 
 // This is a simplified mock registration endpoint that doesn't use a database
 export async function POST(request: Request) {

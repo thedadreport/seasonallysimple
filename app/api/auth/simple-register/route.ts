@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hash } from "bcrypt";
+import { hash } from "bcryptjs";
 import { PrismaClient } from '@prisma/client';
 
 // Create a dedicated Prisma instance for this route
