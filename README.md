@@ -11,9 +11,12 @@ Seasonally Simple is an AI-powered seasonal recipe assistant that makes wholesom
 - Meal planning calendar interface
 - Responsive design for all device sizes
 
-### Coming Soon
+### Implemented Features
 - User authentication and profiles
-- Recipe saving functionality
+- Recipe management (create, view, search, filter)
+- Database integration with PostgreSQL
+
+### Coming Soon
 - Shopping list generation
 - Subscription management with token system
 - Full Claude 3.7 Sonnet API integration
