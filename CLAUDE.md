@@ -138,3 +138,28 @@ A comprehensive deployment guide has been created in DEPLOYMENT.md with:
 - Troubleshooting common issues
 - Scaling and maintenance recommendations
 - NextAuth v5 specific configuration notes
+
+### Vercel Testing and Development Workflow
+For testing features in the Vercel deployment environment:
+
+1. **Development Mode Authentication**
+   - When testing features that require authentication, use development mode bypass in `authOptions.ts`
+   - Set `isDevelopmentMode` to override authentication checks for easier testing
+   - Remember to disable this bypass before final production release
+
+2. **Feature-Specific Authentication**
+   - For testing individual features, temporarily remove them from protected paths in `middleware.ts`
+   - Example: Comment out `/shopping-list` in the `protectedPaths` array and `matcher` configuration
+   - Re-enable authentication protection after testing is complete
+
+3. **Vercel Preview Deployments**
+   - Create feature branches for substantial changes
+   - Vercel will automatically create preview deployments for each branch/PR
+   - Test features in isolation before merging to main
+
+4. **Deployment Testing Checklist**
+   - Verify TypeScript builds successfully (fix type errors before deploying)
+   - Test authentication flows in production environment
+   - Verify database connections and operations
+   - Test API endpoints with real credentials
+   - Check mobile responsiveness in production
