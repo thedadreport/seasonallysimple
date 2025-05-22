@@ -145,19 +145,26 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   
   useEffect(() => {
-    // In a real app, this would be an API call to fetch the recipe details
-    const fetchRecipe = () => {
+    // Fetch the recipe details from the API
+    const fetchRecipe = async () => {
       setLoading(true);
-      // Simulate API delay
-      setTimeout(() => {
-        const recipeData = mockRecipes[params.id as keyof typeof mockRecipes];
-        if (recipeData) {
+      try {
+        const response = await fetch(`/api/recipes/${params.id}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch recipe');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          const recipeData = data.data;
           setRecipe(recipeData);
           setServings(recipeData.servings);
           setUserNotes(recipeData.userNotes || '');
           
-          // In a real app, you would fetch comments from the API
           // For now, we'll use mock comments
+          // In the future, we would fetch comments from a separate API endpoint
           const mockComments = [
             {
               id: '1',
@@ -182,8 +189,11 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
           ];
           setComments(mockComments);
         }
+      } catch (error) {
+        console.error('Error fetching recipe:', error);
+      } finally {
         setLoading(false);
-      }, 500);
+      }
     };
     
     fetchRecipe();
@@ -207,20 +217,39 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
     setIsEditing(true);
   };
   
-  const handleSaveNotes = () => {
-    // In a real app, this would be an API call to update the recipe
-    setIsEditing(false);
+  const handleSaveNotes = async () => {
+    if (!recipe) return;
     
-    // Update the recipe object with new notes
-    if (recipe) {
+    try {
+      // Call the API to update the recipe with new notes
+      const response = await fetch(`/api/recipes/${params.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userNotes: userNotes,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save notes');
+      }
+      
+      // Update the recipe object locally
       setRecipe({
         ...recipe,
         userNotes: userNotes
       });
+      
+      setIsEditing(false);
+      
+      // Success message
+      alert('Your notes have been saved!');
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      alert('Failed to save notes. Please try again.');
     }
-    
-    // Mock API call success message
-    alert('Your notes have been saved!');
   };
   
   const handleSubmitComment = () => {

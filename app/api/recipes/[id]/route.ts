@@ -6,39 +6,45 @@ import prisma from '@/lib/prisma';
 // Define the recipe update schema for validation
 const recipeUpdateSchema = z.object({
   title: z.string().min(1, "Title is required").optional(),
-  description: z.string().optional(),
+  description: z.string().min(1, "Description is required").optional(),
   timings: z.object({
-    prep: z.number(),
-    cook: z.number(),
-    total: z.number(),
+    prep: z.number().min(0, "Prep time must be 0 or greater"),
+    cook: z.number().min(0, "Cook time must be 0 or greater"),
+    total: z.number().min(0, "Total time must be 0 or greater"),
   }).optional(),
   ingredients: z.array(
     z.object({
+      id: z.string().optional(), // For existing ingredients
       amount: z.string(),
-      unit: z.string(),
+      unit: z.string().optional().nullable(),
       name: z.string().min(1, "Ingredient name is required"),
+      _delete: z.boolean().optional(), // For marking ingredients to delete
     })
   ).optional(),
   instructions: z.array(
     z.object({
-      stepNumber: z.number(),
+      id: z.string().optional(), // For existing instructions
+      stepNumber: z.number().min(1, "Step number must be 1 or greater"),
       text: z.string().min(1, "Instruction text is required"),
+      _delete: z.boolean().optional(), // For marking instructions to delete
     })
   ).optional(),
   nutritionInfo: z.object({
-    calories: z.number(),
-    protein: z.number(),
-    carbs: z.number(),
-    fat: z.number(),
-    fiber: z.number(),
-    sodium: z.number(),
-  }).optional(),
-  tips: z.string().optional(),
-  cuisineType: z.string().optional(),
-  servings: z.number().min(1).optional(),
-  userNotes: z.string().optional(),
-  estimatedCostPerServing: z.number().optional(),
-  tags: z.array(z.string()).optional(),
+    calories: z.number().min(0),
+    protein: z.number().min(0),
+    carbs: z.number().min(0),
+    fat: z.number().min(0),
+    fiber: z.number().optional().nullable(),
+    sodium: z.number().optional().nullable(),
+  }).optional().nullable(),
+  difficulty: z.string().min(1, "Difficulty is required").optional(),
+  season: z.string().min(1, "Season is required").optional(),
+  cuisineType: z.string().min(1, "Cuisine type is required").optional(),
+  dietaryTags: z.string().optional(),
+  servings: z.number().min(1, "Servings must be 1 or greater").optional(),
+  tips: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  isAIGenerated: z.boolean().optional(),
 });
 
 // GET handler to retrieve a specific recipe
@@ -49,25 +55,17 @@ export async function GET(
   try {
     const id = params.id;
     
-    // Get recipe by ID
+    // Get recipe by ID with related data
     const recipe = await prisma.recipe.findUnique({
       where: { id },
       include: {
-        tags: true,
-        comments: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                image: true,
-              },
-            },
-          },
+        Ingredient: true,
+        Instruction: {
           orderBy: {
-            createdAt: 'desc',
+            stepNumber: 'asc',
           },
         },
+        NutritionInfo: true,
       },
     });
     
@@ -77,11 +75,6 @@ export async function GET(
         error: { message: 'Recipe not found' } 
       }, { status: 404 });
     }
-    
-    // Parse JSON strings
-    const ingredients = JSON.parse(recipe.ingredients);
-    const instructions = JSON.parse(recipe.instructions);
-    const nutritionInfo = recipe.nutritionInfo ? JSON.parse(recipe.nutritionInfo) : null;
     
     // Transform the data for the frontend
     const transformedRecipe = {
@@ -93,24 +86,35 @@ export async function GET(
         cook: recipe.cookTime,
         total: recipe.totalTime,
       },
-      ingredients,
-      instructions,
-      nutritionInfo,
+      ingredients: recipe.Ingredient.map(ingredient => ({
+        id: ingredient.id,
+        amount: ingredient.amount,
+        unit: ingredient.unit,
+        name: ingredient.name,
+      })),
+      instructions: recipe.Instruction.map(instruction => ({
+        id: instruction.id,
+        stepNumber: instruction.stepNumber,
+        text: instruction.text,
+      })),
+      nutritionInfo: recipe.NutritionInfo ? {
+        calories: recipe.NutritionInfo.calories,
+        protein: recipe.NutritionInfo.protein,
+        carbs: recipe.NutritionInfo.carbs,
+        fat: recipe.NutritionInfo.fat,
+        fiber: recipe.NutritionInfo.fiber,
+        sodium: recipe.NutritionInfo.sodium,
+      } : null,
       servings: recipe.servings,
+      difficulty: recipe.difficulty,
+      season: recipe.season,
       cuisineType: recipe.cuisineType,
+      dietaryTags: recipe.dietaryTags ? recipe.dietaryTags.split(',') : [],
       tips: recipe.tips,
-      userNotes: recipe.userNotes,
-      estimatedCostPerServing: recipe.estimatedCostPerServing,
+      imageUrl: recipe.imageUrl,
       isAIGenerated: recipe.isAIGenerated,
-      tags: recipe.tags.map(tag => tag.name),
       createdAt: recipe.createdAt,
       updatedAt: recipe.updatedAt,
-      comments: recipe.comments.map(comment => ({
-        id: comment.id,
-        content: comment.content,
-        createdAt: comment.createdAt,
-        user: comment.user,
-      })),
     };
     
     return NextResponse.json({ 
@@ -163,6 +167,11 @@ export async function PATCH(
     // Get recipe by ID
     const recipe = await prisma.recipe.findUnique({
       where: { id },
+      include: {
+        Ingredient: true,
+        Instruction: true,
+        NutritionInfo: true,
+      },
     });
     
     if (!recipe) {
@@ -172,55 +181,159 @@ export async function PATCH(
       }, { status: 404 });
     }
     
-    // Build update data
-    const updateData: any = {};
-    
-    if (validatedData.title) updateData.title = validatedData.title;
-    if (validatedData.description !== undefined) updateData.description = validatedData.description;
-    if (validatedData.timings) {
-      updateData.prepTime = validatedData.timings.prep;
-      updateData.cookTime = validatedData.timings.cook;
-      updateData.totalTime = validatedData.timings.total;
-    }
-    if (validatedData.ingredients) updateData.ingredients = JSON.stringify(validatedData.ingredients);
-    if (validatedData.instructions) updateData.instructions = JSON.stringify(validatedData.instructions);
-    if (validatedData.nutritionInfo) updateData.nutritionInfo = JSON.stringify(validatedData.nutritionInfo);
-    if (validatedData.tips !== undefined) updateData.tips = validatedData.tips;
-    if (validatedData.cuisineType) updateData.cuisineType = validatedData.cuisineType;
-    if (validatedData.servings) updateData.servings = validatedData.servings;
-    if (validatedData.userNotes !== undefined) updateData.userNotes = validatedData.userNotes;
-    if (validatedData.estimatedCostPerServing) updateData.estimatedCostPerServing = validatedData.estimatedCostPerServing;
-    
-    // Update the recipe
-    const updatedRecipe = await prisma.recipe.update({
-      where: { id },
-      data: updateData,
-    });
-    
-    // Update tags if present
-    if (validatedData.tags) {
-      // Delete existing tags
-      await prisma.recipeTag.deleteMany({
-        where: { recipeId: id },
-      });
+    // Update recipe and related data in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Update the recipe main data
+      const updateData: any = {};
       
-      // Create new tags
-      for (const tagName of validatedData.tags) {
-        await prisma.recipeTag.create({
-          data: {
-            name: tagName,
-            recipe: {
-              connect: { id },
-            },
-          },
+      if (validatedData.title) updateData.title = validatedData.title;
+      if (validatedData.description) updateData.description = validatedData.description;
+      if (validatedData.timings) {
+        updateData.prepTime = validatedData.timings.prep;
+        updateData.cookTime = validatedData.timings.cook;
+        updateData.totalTime = validatedData.timings.total;
+      }
+      if (validatedData.difficulty) updateData.difficulty = validatedData.difficulty;
+      if (validatedData.season) updateData.season = validatedData.season;
+      if (validatedData.cuisineType) updateData.cuisineType = validatedData.cuisineType;
+      if (validatedData.dietaryTags !== undefined) {
+        updateData.dietaryTags = Array.isArray(validatedData.dietaryTags) 
+          ? validatedData.dietaryTags.join(',') 
+          : validatedData.dietaryTags || '';
+      }
+      if (validatedData.servings) updateData.servings = validatedData.servings;
+      if (validatedData.tips !== undefined) updateData.tips = validatedData.tips;
+      if (validatedData.imageUrl !== undefined) updateData.imageUrl = validatedData.imageUrl;
+      if (validatedData.isAIGenerated !== undefined) updateData.isAIGenerated = validatedData.isAIGenerated;
+      
+      // Update the recipe if there are changes
+      if (Object.keys(updateData).length > 0) {
+        await tx.recipe.update({
+          where: { id },
+          data: updateData,
         });
       }
-    }
+      
+      // Update ingredients if provided
+      if (validatedData.ingredients) {
+        // Get existing ingredient IDs
+        const existingIngredientIds = recipe.Ingredient.map(ing => ing.id);
+        
+        // Process each ingredient
+        for (const ingredient of validatedData.ingredients) {
+          // If ingredient has an ID and exists, update it
+          if (ingredient.id && existingIngredientIds.includes(ingredient.id)) {
+            // If marked for deletion, delete it
+            if (ingredient._delete) {
+              await tx.ingredient.delete({
+                where: { id: ingredient.id },
+              });
+            } else {
+              // Otherwise update it
+              await tx.ingredient.update({
+                where: { id: ingredient.id },
+                data: {
+                  amount: ingredient.amount,
+                  unit: ingredient.unit || null,
+                  name: ingredient.name,
+                },
+              });
+            }
+          } else if (!ingredient._delete) {
+            // If ingredient has no ID or doesn't exist, create a new one
+            await tx.ingredient.create({
+              data: {
+                id: `${id}-ing-${Math.random().toString(36).substr(2, 9)}`,
+                recipeId: id,
+                amount: ingredient.amount,
+                unit: ingredient.unit || null,
+                name: ingredient.name,
+              },
+            });
+          }
+        }
+      }
+      
+      // Update instructions if provided
+      if (validatedData.instructions) {
+        // Get existing instruction IDs
+        const existingInstructionIds = recipe.Instruction.map(ins => ins.id);
+        
+        // Process each instruction
+        for (const instruction of validatedData.instructions) {
+          // If instruction has an ID and exists, update it
+          if (instruction.id && existingInstructionIds.includes(instruction.id)) {
+            // If marked for deletion, delete it
+            if (instruction._delete) {
+              await tx.instruction.delete({
+                where: { id: instruction.id },
+              });
+            } else {
+              // Otherwise update it
+              await tx.instruction.update({
+                where: { id: instruction.id },
+                data: {
+                  stepNumber: instruction.stepNumber,
+                  text: instruction.text,
+                },
+              });
+            }
+          } else if (!instruction._delete) {
+            // If instruction has no ID or doesn't exist, create a new one
+            await tx.instruction.create({
+              data: {
+                id: `${id}-ins-${Math.random().toString(36).substr(2, 9)}`,
+                recipeId: id,
+                stepNumber: instruction.stepNumber,
+                text: instruction.text,
+              },
+            });
+          }
+        }
+      }
+      
+      // Update nutrition info if provided
+      if (validatedData.nutritionInfo) {
+        if (recipe.NutritionInfo) {
+          // Update existing nutrition info
+          await tx.nutritionInfo.update({
+            where: { id: recipe.NutritionInfo.id },
+            data: {
+              calories: validatedData.nutritionInfo.calories,
+              protein: validatedData.nutritionInfo.protein,
+              carbs: validatedData.nutritionInfo.carbs,
+              fat: validatedData.nutritionInfo.fat,
+              fiber: validatedData.nutritionInfo.fiber || null,
+              sodium: validatedData.nutritionInfo.sodium || null,
+            },
+          });
+        } else {
+          // Create new nutrition info
+          await tx.nutritionInfo.create({
+            data: {
+              id: `${id}-nut-${Math.random().toString(36).substr(2, 9)}`,
+              recipeId: id,
+              calories: validatedData.nutritionInfo.calories,
+              protein: validatedData.nutritionInfo.protein,
+              carbs: validatedData.nutritionInfo.carbs,
+              fat: validatedData.nutritionInfo.fat,
+              fiber: validatedData.nutritionInfo.fiber || null,
+              sodium: validatedData.nutritionInfo.sodium || null,
+            },
+          });
+        }
+      } else if (validatedData.nutritionInfo === null && recipe.NutritionInfo) {
+        // If nutrition info is explicitly set to null, delete existing
+        await tx.nutritionInfo.delete({
+          where: { id: recipe.NutritionInfo.id },
+        });
+      }
+    });
     
     return NextResponse.json({ 
       success: true, 
       data: {
-        id: updatedRecipe.id,
+        id,
         message: 'Recipe updated successfully',
       }
     });
@@ -275,7 +388,7 @@ export async function DELETE(
       }, { status: 404 });
     }
     
-    // Get recipe by ID to check ownership
+    // Get recipe by ID
     const recipe = await prisma.recipe.findUnique({
       where: { id },
     });
@@ -287,15 +400,7 @@ export async function DELETE(
       }, { status: 404 });
     }
     
-    // Check if the user is the owner of the recipe or an admin
-    if (recipe.userId !== user.id) {
-      return NextResponse.json({ 
-        success: false, 
-        error: { message: 'Not authorized to delete this recipe' } 
-      }, { status: 403 });
-    }
-    
-    // Delete the recipe
+    // Delete the recipe (cascade delete will handle related entities)
     await prisma.recipe.delete({
       where: { id },
     });
