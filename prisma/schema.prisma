@@ -34,23 +34,22 @@ model Session {
 }
 
 model User {
-  id            String          @id @default(uuid())
-  name          String?
-  firstName     String?
-  lastName      String?
-  email         String          @unique
-  emailVerified DateTime?
-  password      String?
-  image         String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  accounts      Account[]
-  mealPlans     MealPlan[]
-  recipes       Recipe[]        // User-created recipes
-  savedRecipes  SavedRecipe[]
-  recipeComments RecipeComment[] // User's comments on recipes
-  sessions      Session[]
-  shoppingLists ShoppingList[]
+  id               String        @id @default(uuid())
+  name             String?
+  firstName        String?
+  lastName         String?
+  email            String        @unique
+  emailVerified    DateTime?
+  password         String?
+  image            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  resetToken       String?       @unique
+  resetTokenExpiry DateTime?
+  accounts         Account[]
+  mealPlans        MealPlan[]
+  savedRecipes     SavedRecipe[]
+  sessions         Session[]
 }
 
 model VerificationToken {
@@ -62,50 +61,27 @@ model VerificationToken {
 }
 
 model Recipe {
-  id                     String         @id @default(uuid())
-  title                  String
-  description            String
-  prepTime               Int
-  cookTime               Int
-  totalTime              Int
-  servings               Int
-  cuisineType            String?
-  imageUrl               String?
-  isAIGenerated          Boolean        @default(false)
-  tips                   String?
-  ingredients            String         // JSON string of ingredients
-  instructions           String         // JSON string of instructions
-  nutritionInfo          String?        // JSON string of nutrition info
-  estimatedCostPerServing Float?
-  userNotes              String?        // User's personal notes or modifications to the recipe
-  userId                 String?
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @default(now()) @updatedAt
-  mealPlanItems          MealPlanItem[]
-  savedBy                SavedRecipe[]
-  tags                   RecipeTag[]
-  comments               RecipeComment[]
-  user                   User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-}
-
-model RecipeComment {
-  id        String   @id @default(uuid())
-  content   String
-  recipeId  String
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model RecipeTag {
-  id       String @id @default(uuid())
-  name     String
-  recipeId String
-  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-
-  @@unique([recipeId, name])
+  id            String         @id @default(uuid())
+  title         String
+  description   String
+  prepTime      Int
+  cookTime      Int
+  totalTime     Int
+  servings      Int
+  difficulty    String
+  season        String
+  cuisineType   String
+  dietaryTags   String
+  imageUrl      String?
+  isAIGenerated Boolean        @default(false)
+  tips          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
+  Ingredient    Ingredient[]
+  Instruction   Instruction[]
+  mealPlanItems MealPlanItem[]
+  NutritionInfo NutritionInfo?
+  savedBy       SavedRecipe[]
 }
 
 model SavedRecipe {
@@ -120,16 +96,15 @@ model SavedRecipe {
 }
 
 model MealPlan {
-  id            String         @id @default(uuid())
-  userId        String
-  name          String
-  startDate     DateTime
-  endDate       DateTime
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items         MealPlanItem[]
-  shoppingLists ShoppingList[]
+  id        String         @id @default(uuid())
+  userId    String
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     MealPlanItem[]
 }
 
 model MealPlanItem {
@@ -142,27 +117,33 @@ model MealPlanItem {
   recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 }
 
-model ShoppingList {
-  id          String             @id @default(uuid())
-  name        String
-  userId      String
-  mealPlanId  String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mealPlan    MealPlan?          @relation(fields: [mealPlanId], references: [id], onDelete: SetNull)
-  items       ShoppingListItem[]
+model Ingredient {
+  id       String  @id
+  recipeId String
+  amount   String
+  unit     String?
+  name     String
+  Recipe   Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 }
 
-model ShoppingListItem {
-  id              String       @id @default(uuid())
-  shoppingListId  String
-  name            String
-  quantity        String
-  unit            String?
-  category        String       // e.g., "produce", "dairy", "pantry"
-  checked         Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  shoppingList    ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+model Instruction {
+  id         String @id
+  recipeId   String
+  stepNumber Int
+  text       String
+  Recipe     Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, stepNumber])
+}
+
+model NutritionInfo {
+  id       String @id
+  recipeId String @unique
+  calories Int
+  protein  Float
+  carbs    Float
+  fat      Float
+  fiber    Float?
+  sodium   Float?
+  Recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 }

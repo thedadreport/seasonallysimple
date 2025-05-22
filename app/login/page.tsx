@@ -15,9 +15,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isDevMode, setIsDevMode] = useState(false);
   
-  // Check if we're in development mode
+  // Disabled development mode checks
   useEffect(() => {
-    setIsDevMode(process.env.NODE_ENV === 'development');
+    setIsDevMode(false);
   }, []);
   
   const router = useRouter();
@@ -33,36 +33,7 @@ export default function LoginPage() {
     setError('');
     
     try {
-      // For development mode, use direct login API
-      if (isDevMode) {
-        try {
-          const devResponse = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email,
-              password,
-            }),
-          });
-          
-          if (!devResponse.ok) {
-            setError('Login failed in development mode. This should not happen.');
-          } else {
-            // Simulate successful login
-            setTimeout(() => {
-              router.push('/');
-              router.refresh();
-            }, 500);
-          }
-          return;
-        } catch (devError) {
-          console.error('Dev login error:', devError);
-          setError('Error in development login route');
-          return;
-        }
-      }
+      // Development mode login is disabled - always use NextAuth
       
       if (isLogin) {
         // Use NextAuth for login
@@ -73,13 +44,24 @@ export default function LoginPage() {
         });
         
         if (result?.error) {
-          setError('Invalid email or password');
+          // Handle different error cases
+          if (result.error === "CredentialsSignin") {
+            setError('Invalid email or password');
+          } else if (result.error === "AccessDenied") {
+            setError('Access denied. Your account may be disabled.');
+          } else if (result.error.includes("Email")) {
+            setError('Please enter a valid email address');
+          } else {
+            setError(`Authentication error: ${result.error}`);
+            console.error('Auth error details:', result);
+          }
         } else {
           router.push('/');
           router.refresh();
         }
       } else {
-        // Handle registration through our API endpoint
+        // Use the real registration endpoint
+        console.log("Sending registration data:", { firstName, lastName, email, passwordLength: password.length });
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: {
@@ -96,9 +78,20 @@ export default function LoginPage() {
         const data = await response.json();
         
         if (!response.ok) {
-          setError(data.error || 'Registration failed. Please try again.');
+          // Handle specific registration errors
+          if (data.error === 'Email already exists') {
+            setError('An account with this email already exists. Please log in instead.');
+          } else if (data.error?.includes('password')) {
+            setError(data.error || 'Password does not meet requirements.');
+          } else if (data.error?.includes('email')) {
+            setError('Please enter a valid email address.');
+          } else {
+            setError(data.error || 'Registration failed. Please try again.');
+          }
+          console.error('Registration error:', data.error);
         } else {
           // Auto login after successful registration
+          console.log('Registration successful - attempting login');
           const signInResult = await signIn('credentials', {
             redirect: false,
             email,
@@ -106,6 +99,7 @@ export default function LoginPage() {
           });
           
           if (signInResult?.error) {
+            console.error('Auto-login after registration failed:', signInResult.error);
             setError('Account created but failed to log in. Please try logging in.');
           } else {
             router.push('/');
@@ -123,18 +117,7 @@ export default function LoginPage() {
   
   // Social sign-in handler
   const handleSocialSignIn = (provider: string) => {
-    // For development mode, simply redirect without actual auth
-    if (isDevMode) {
-      setLoading(true);
-      setTimeout(() => {
-        // Simulate successful login
-        router.push('/');
-        router.refresh();
-      }, 500);
-      return;
-    }
-    
-    // Actual social sign-in
+    // Always use actual social sign-in
     setLoading(true);
     signIn(provider, { callbackUrl: '/' });
   };
@@ -159,12 +142,7 @@ export default function LoginPage() {
           </div>
         )}
         
-        {isDevMode && (
-          <div className="bg-blue-50 text-blue-700 p-3 rounded-md mb-6">
-            <p className="font-medium">Development Mode Active</p>
-            <p className="text-sm">Authentication is simulated. Any email/password will work.</p>
-          </div>
-        )}
+        {/* Development mode notice removed */}
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {!isLogin && (
@@ -229,7 +207,7 @@ export default function LoginPage() {
           
           {isLogin && (
             <div className="text-right">
-              <Link href="/forgot-password" className="text-sage text-sm hover:underline">
+              <Link href="/reset-password" className="text-sage text-sm hover:underline">
                 Forgot your password?
               </Link>
             </div>

@@ -6,7 +6,23 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-const prisma = globalForPrisma.prisma || new PrismaClient();
+// Explicitly provide the DATABASE_URL to ensure it's used correctly
+const prisma = globalForPrisma.prisma || new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: ['query', 'error', 'warn'],
+});
+
+// Log the database URL (with credentials masked) to help with debugging
+const dbUrl = process.env.DATABASE_URL || '';
+console.log('Prisma initialized with database:', {
+  defined: !!dbUrl,
+  valid: dbUrl.startsWith('postgresql://'),
+  prefix: dbUrl.substring(0, 15) + '...',
+});
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;

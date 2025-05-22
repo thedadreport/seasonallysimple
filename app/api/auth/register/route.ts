@@ -1,13 +1,26 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hash } from "bcrypt";
-import prisma from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 
-// Environment flag to use mock data instead of database
-// This helps with development environments without proper DB setup
-const USE_MOCK_MODE = process.env.NODE_ENV === 'development';
+// Create a dedicated PrismaClient instance for this API route
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+});
 
-// Registration validation schema
+// Log database connection details
+console.log("Registration API: Database URL check", {
+  defined: !!process.env.DATABASE_URL,
+  length: process.env.DATABASE_URL?.length || 0,
+  valid: process.env.DATABASE_URL?.startsWith("postgresql://") || false,
+  prefix: process.env.DATABASE_URL?.substring(0, 12) + "..." || "undefined"
+});
+
+// Registration validation schema - simple version for testing
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
@@ -16,107 +29,83 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  console.log("=== Registration API Called ===");
+  
   try {
+    // Parse request body
     const body = await request.json();
-    
+    console.log("Registration request for:", body.email);
+
     // Validate input data
-    const result = registerSchema.safeParse(body);
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: result.error.format() },
-        { status: 400 }
-      );
+    const validation = registerSchema.safeParse(body);
+    if (!validation.success) {
+      console.log("Validation failed:", validation.error.format());
+      return NextResponse.json({ error: "Invalid input data" }, { status: 400 });
     }
+
+    const { email, password, firstName, lastName } = validation.data;
     
-    const { firstName, lastName, email, password } = body;
-    
-    // In development mode, use mock data
-    if (USE_MOCK_MODE) {
-      console.log('Using mock registration mode for development');
-      
-      // Create a mock user (not saved to database)
-      const mockUser = {
-        id: `mock-${Date.now()}`,
-        firstName,
-        lastName,
-        name: `${firstName} ${lastName}`,
-        email,
-        password: await hash(password, 10), // Still hash it for realism
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      
-      // Return the mock user (without password)
-      const { password: _, ...userWithoutPassword } = mockUser;
-      
-      // Write the credentials to a local file for testing
-      console.log(`Mock user created: ${email}`);
-      
-      return NextResponse.json(
-        { 
-          message: "User registered successfully (DEV MODE)", 
-          user: userWithoutPassword 
-        },
-        { status: 201 }
-      );
-    }
-    
-    let userWithoutPassword;
-    
+    // Check if user already exists
     try {
-      // Check if user already exists
+      console.log("Checking if email exists:", email);
       const existingUser = await prisma.user.findUnique({
-        where: { email },
+        where: { email: email.toLowerCase() },
       });
-      
+
       if (existingUser) {
-        return NextResponse.json(
-          { error: "Email already in use" },
-          { status: 400 }
-        );
+        console.log("Email already exists");
+        return NextResponse.json({ error: "Email already exists" }, { status: 400 });
       }
-      
-      // Hash the password
-      const hashedPassword = await hash(password, 10);
-      
-      // Create the user in the database
-      const newUser = await prisma.user.create({
+    } catch (findError) {
+      console.error("Error checking existing user:", findError);
+      return NextResponse.json(
+        { error: "Database error during user lookup" },
+        { status: 500 }
+      );
+    }
+
+    // Hash the password
+    console.log("Hashing password...");
+    const hashedPassword = await hash(password, 10);
+
+    // Create the user
+    try {
+      console.log("Creating new user in database");
+      const user = await prisma.user.create({
         data: {
+          email: email.toLowerCase(),
+          password: hashedPassword,
           firstName,
           lastName,
           name: `${firstName} ${lastName}`,
-          email,
-          password: hashedPassword,
         },
       });
+
+      console.log("User created successfully with ID:", user.id);
       
-      // Extract user data (without password)
-      const { password: _, ...userData } = newUser;
-      userWithoutPassword = userData;
+      // Remove password from response
+      const { password: _, ...userWithoutPassword } = user;
       
-    } catch (dbError) {
-      console.error("Database error during registration:", dbError);
-      throw new Error(`Database error: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+      return NextResponse.json({
+        success: true,
+        message: "Registration successful",
+        user: userWithoutPassword,
+      }, { status: 201 });
+    } catch (createError) {
+      console.error("Error creating user:", createError);
+      return NextResponse.json(
+        { error: "Failed to create user account" },
+        { status: 500 }
+      );
     }
-    
-    // Return a success response
-    return NextResponse.json(
-      { 
-        message: "User registered successfully", 
-        user: userWithoutPassword 
-      },
-      { status: 201 }
-    );
   } catch (error) {
-    console.error("Registration error:", error);
-    
-    // Return more detailed error for debugging
+    console.error("Unexpected registration error:", error);
     return NextResponse.json(
-      { 
-        error: "Something went wrong during registration",
-        details: error instanceof Error ? error.message : String(error)
-      },
+      { error: "An unexpected error occurred" },
       { status: 500 }
     );
+  } finally {
+    // Always disconnect Prisma client
+    await prisma.$disconnect();
   }
 }

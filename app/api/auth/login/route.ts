@@ -21,15 +21,11 @@ export async function POST(request: Request) {
       );
     }
     
-    // In development mode, always return success with mock user
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: "dev-user-" + Date.now(),
-        email: body.email,
-        name: "Development User",
-      },
-    });
+    // We no longer support direct login - all auth should go through NextAuth
+    return NextResponse.json(
+      { error: "This endpoint is deprecated. Please use NextAuth for authentication." },
+      { status: 400 }
+    );
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json(
