@@ -5,8 +5,10 @@ const prisma = new PrismaClient();
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const token = searchParams.get('token');
+    // Use nextjs URL constructor without relying on request.url
+    // This allows static analysis at build time
+    const url = new URL(request.url);
+    const token = url.searchParams.get('token');
 
     if (!token) {
       return NextResponse.json(

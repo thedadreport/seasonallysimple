@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 
@@ -32,7 +32,8 @@ const cuisines = ['All', 'Mediterranean', 'Italian', 'French', 'American', 'Asia
 const dietaryOptions = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'nut-free', 'low-carb', 'keto', 'paleo'];
 const timeOptions = ['Under 30 min', 'Under 45 min', 'Under 60 min'];
 
-export default function RecipesPage() {
+// Create a wrapper component for searchParams
+function RecipesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -519,5 +520,20 @@ export default function RecipesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main component that wraps the content with Suspense
+export default function RecipesPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="text-center py-12">
+          <p className="text-gray-600">Loading recipes...</p>
+        </div>
+      </div>
+    }>
+      <RecipesContent />
+    </Suspense>
   );
 }
