@@ -89,13 +89,23 @@ export default function AddRecipePage() {
     if (name.includes('.')) {
       // Handle nested properties
       const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof RecipeFormData],
-          [child]: value,
-        },
-      }));
+      setFormData(prev => {
+        const parentKey = parent as keyof RecipeFormData;
+        const parentValue = prev[parentKey] || {};
+        
+        if (typeof parentValue !== 'object') {
+          console.error(`Expected ${parent} to be an object, but got ${typeof parentValue}`);
+          return prev;
+        }
+        
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: value,
+          },
+        };
+      });
     } else {
       // Handle top-level properties
       setFormData(prev => ({
@@ -112,13 +122,23 @@ export default function AddRecipePage() {
     if (name.includes('.')) {
       // Handle nested properties
       const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof RecipeFormData],
-          [child]: parseInt(value) || 0,
-        },
-      }));
+      setFormData(prev => {
+        const parentKey = parent as keyof RecipeFormData;
+        const parentValue = prev[parentKey] || {};
+        
+        if (typeof parentValue !== 'object') {
+          console.error(`Expected ${parent} to be an object, but got ${typeof parentValue}`);
+          return prev;
+        }
+        
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: parseInt(value) || 0,
+          },
+        };
+      });
     } else {
       // Handle top-level properties
       setFormData(prev => ({
