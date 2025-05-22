@@ -155,11 +155,8 @@ export default function ShoppingListPage() {
     );
   }
   
-  // Disabled for testing
-  // if (status === 'unauthenticated') {
-  //   router.push('/login');
-  //   return null;
-  // }
+  // The shopping list doesn't require authentication for now.
+  // Auth will be re-enabled after testing and final deployment.
   
   if (!selectedList) {
     return (

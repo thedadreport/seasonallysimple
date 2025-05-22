@@ -34,10 +34,8 @@ const authOptions: any = {
           return null;
         }
 
-        // DEPLOYMENT CHANGE: Disabled development mode authentication bypass
-        // In production, we always validate against the database
-        // Development mode bypass was commented out for production deployment
-        /*
+        // TESTING CHANGE: Re-enabled development mode authentication bypass
+        // This allows testing without requiring database auth
         if (isDevelopmentMode) {
           console.log('DEVELOPMENT MODE: All login credentials accepted');
           
@@ -47,7 +45,6 @@ const authOptions: any = {
             name: "Development User",
           };
         }
-        */
         
         try {
           const email = credentials.email as string;
