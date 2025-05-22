@@ -29,7 +29,7 @@ const authOptions: any = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
@@ -41,7 +41,7 @@ const authOptions: any = {
           
           return {
             id: `dev-user-${Date.now()}`,
-            email: credentials.email,
+            email: credentials.email as string,
             name: "Development User",
           };
         }
