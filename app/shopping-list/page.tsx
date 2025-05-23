@@ -114,8 +114,15 @@ export default function ShoppingListPage() {
       const data: PaginatedResponse = await response.json();
       setLists(data.lists);
       
-      // Set the first list as selected if none is selected
-      if (data.lists.length > 0 && !selectedListId) {
+          // Check if there's a listId in the URL
+      const url = new URL(window.location.href);
+      const listIdParam = url.searchParams.get('listId');
+      
+      if (listIdParam && data.lists.some(list => list.id === listIdParam)) {
+        // If the listId from URL exists in our lists, select it
+        setSelectedListId(listIdParam);
+      } else if (data.lists.length > 0 && !selectedListId) {
+        // Otherwise select the first list
         setSelectedListId(data.lists[0].id);
       }
       

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import RecipeSearchSidebar from '../components/RecipeSearchSidebar';
+import ShoppingListModal from '../components/ShoppingListModal';
 
 // Define interfaces for our data model
 interface Recipe {
@@ -31,6 +32,8 @@ interface DayPlan {
 }
 
 interface MealPlan {
+  id?: string;
+  name?: string;
   startDate: Date;
   endDate: Date;
   meals: DayPlan[];
@@ -372,6 +375,10 @@ export default function MealPlanPage() {
     // Get empty meal plan structure with the same date range
     const emptyMealPlan = generateEmptyMealPlan(startDate);
     
+    // Add id and name from the API response
+    emptyMealPlan.id = apiMealPlan.id;
+    emptyMealPlan.name = apiMealPlan.name;
+    
     // Fill in recipes from API data
     if (apiMealPlan.items && apiMealPlan.items.length > 0) {
       for (const item of apiMealPlan.items) {
@@ -452,10 +459,16 @@ export default function MealPlanPage() {
     // This would be implemented in a real app, using router.push with query parameters
   };
   
+  const [isShoppingListModalOpen, setShoppingListModalOpen] = useState(false);
+  
   const handleGenerateShoppingList = () => {
-    // In a real app, this would call an API to create a shopping list
-    // For now, just navigate to the shopping list page
-    router.push('/shopping-list');
+    // Open the shopping list modal
+    setShoppingListModalOpen(true);
+  };
+  
+  const handleShoppingListCreated = (shoppingListId: string) => {
+    // Navigate to the shopping list page
+    router.push(`/shopping-list?listId=${shoppingListId}`);
   };
   
   const formatDate = (date: Date) => {
@@ -961,6 +974,17 @@ export default function MealPlanPage() {
         selectedMealType={selectedMealType}
         selectedDayId={selectedDayId}
       />
+      
+      {/* Shopping List Modal */}
+      {mealPlan && (
+        <ShoppingListModal
+          isOpen={isShoppingListModalOpen}
+          onClose={() => setShoppingListModalOpen(false)}
+          mealPlanId={mealPlan.id || ''} // Make sure mealPlan has an id property
+          mealPlanName={mealPlan.name || `Meal Plan ${formatDate(mealPlan.startDate)} - ${formatDate(mealPlan.endDate)}`}
+          onSuccess={handleShoppingListCreated}
+        />
+      )}
     </div>
   );
 }
