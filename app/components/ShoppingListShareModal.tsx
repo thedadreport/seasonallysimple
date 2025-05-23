@@ -3,6 +3,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { ShoppingList } from '@/types/shoppingList';
 import { toast } from 'react-hot-toast';
+// Import types only, actual imports will be dynamic
+import type html2canvas from 'html2canvas';
+import type { jsPDF } from 'jspdf';
 
 interface ShoppingListShareModalProps {
   isOpen: boolean;
@@ -20,20 +23,26 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
   
   // Check if PDF generation is supported (only in client-side environment)
   useEffect(() => {
+    // In server-side rendering, always set to false initially
+    if (typeof window === 'undefined') {
+      setPdfSupported(false);
+      return;
+    }
+    
+    // For client-side, check if the modules can be imported
     const checkPdfSupport = async () => {
-      if (typeof window !== 'undefined') {
-        try {
-          // Use dynamic imports instead of require
-          const modules = await Promise.all([
-            import('html2canvas').catch(() => null),
-            import('jspdf').catch(() => null)
-          ]);
-          
-          setPdfSupported(modules[0] !== null && modules[1] !== null);
-        } catch (err) {
-          console.warn('PDF generation not supported:', err);
-          setPdfSupported(false);
-        }
+      try {
+        // We're not actually using these imports, just checking if they're available
+        // The import() function itself won't throw if the module exists but has errors
+        await Promise.all([
+          import('html2canvas'),
+          import('jspdf')
+        ]);
+        
+        setPdfSupported(true);
+      } catch (err) {
+        console.warn('PDF generation not supported:', err);
+        setPdfSupported(false);
       }
     };
     
@@ -97,9 +106,19 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
     try {
       // Only import these libraries on the client side
       if (typeof window !== 'undefined') {
-        // Using dynamic imports
-        const html2canvasModule = await import('html2canvas');
-        const jsPDFModule = await import('jspdf');
+        // Using dynamic imports with error handling
+        let html2canvasModule;
+        let jsPDFModule;
+        
+        try {
+          html2canvasModule = await import('html2canvas');
+          jsPDFModule = await import('jspdf');
+        } catch (err) {
+          console.error("Failed to load PDF generation libraries:", err);
+          toast.error("PDF generation failed - required libraries not available");
+          setIsLoading(false);
+          return;
+        }
         
         const html2canvas = html2canvasModule.default;
         const jsPDF = jsPDFModule.default;
