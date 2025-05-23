@@ -78,20 +78,18 @@ export default function RecipeSearchSidebar({
           setRecipes(transformedRecipes);
           
           // Extract all unique tags
-          const tags = Array.from(new Set(
-            transformedRecipes.flatMap((recipe: Recipe) => 
-              recipe.dietaryTags || []
-            ).filter((tag: string) => tag && tag.trim() !== '')
-          ));
+          const dietaryTagsArray = transformedRecipes.flatMap((recipe: Recipe) => 
+            recipe.dietaryTags || []
+          ).filter((tag: string) => tag && tag.trim() !== '');
+          const tags = Array.from(new Set(dietaryTagsArray));
           
           // Add additional category tags based on recipe properties
-          const categoryTags = [
-            ...new Set([
-              ...transformedRecipes.map((r: Recipe) => r.difficulty || ''),
-              ...transformedRecipes.map((r: Recipe) => r.season || ''),
-              ...transformedRecipes.map((r: Recipe) => r.cuisineType || '')
-            ].filter((tag: string) => tag && tag.trim() !== ''))
-          ];
+          const categoryTagsArray = [
+            ...transformedRecipes.map((r: Recipe) => r.difficulty || ''),
+            ...transformedRecipes.map((r: Recipe) => r.season || ''),
+            ...transformedRecipes.map((r: Recipe) => r.cuisineType || '')
+          ].filter((tag: string) => tag && tag.trim() !== '');
+          const categoryTags = Array.from(new Set(categoryTagsArray));
           
           setAllTags([...tags, ...categoryTags]);
           
