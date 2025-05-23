@@ -159,6 +159,9 @@ export default function ShoppingListModal({
     });
   };
   
+  // State management
+  // Note: pantry integration has been removed
+  
   // Create the shopping list
   const createShoppingList = async () => {
     if (ingredients.length === 0) {
@@ -276,6 +279,7 @@ export default function ShoppingListModal({
                 disabled={loading}
                 required
               />
+              
             </div>
             
             <div className="flex-1 overflow-auto p-4">

@@ -11,7 +11,7 @@ export interface NetworkState {
  * Custom hook to monitor and manage network connectivity
  */
 export function useNetworkState(): NetworkState {
-  const [online, setOnline] = useState<boolean>(navigator?.onLine ?? true);
+  const [online, setOnline] = useState<boolean>(typeof window !== 'undefined' ? navigator?.onLine ?? true : true);
   const [offlineSince, setOfflineSince] = useState<Date | null>(null);
   const [lastChecked, setLastChecked] = useState<Date>(new Date());
 
@@ -56,6 +56,9 @@ export function useNetworkState(): NetworkState {
 
   // Listen to browser's online/offline events
   useEffect(() => {
+    // Only run this effect on the client side
+    if (typeof window === 'undefined') return;
+    
     const handleOnline = () => {
       setOnline(true);
       setOfflineSince(null);

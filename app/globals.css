@@ -38,7 +38,7 @@
 /* Print styles */
 @media print {
   /* Hide navigation and non-essential elements */
-  nav, button, .hidden-print, footer {
+  nav, button, .hidden-print, footer, .no-print, .share-modal {
     display: none !important;
   }
   
@@ -129,5 +129,54 @@
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+  
+  /* Shopping List specific print styles */
+  .print-preview {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .print-preview h2 {
+    font-size: 24pt !important;
+    border-bottom: none !important;
+    margin-bottom: 4pt !important;
+  }
+  
+  .print-preview h3 {
+    font-size: 14pt !important;
+    margin-top: 16pt !important;
+    margin-bottom: 8pt !important;
+    border-bottom: 1pt solid #ddd !important;
+    padding-bottom: 2pt !important;
+  }
+  
+  .print-checkbox {
+    width: 12pt !important;
+    height: 12pt !important;
+    border: 1pt solid #000 !important;
+    display: inline-block !important;
+    margin-right: 6pt !important;
+  }
+  
+  .print-footer {
+    margin-top: 24pt !important;
+    font-size: 8pt !important;
+    color: #888 !important;
+    text-align: center !important;
+  }
+  
+  /* Only print the shopping list content when using print option */
+  body > *:not(.print-container) {
+    display: none !important;
+  }
+  
+  .print-container {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 }

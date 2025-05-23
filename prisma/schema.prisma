@@ -52,6 +52,7 @@ model User {
   sessions         Session[]
   comments         RecipeComment[]
   shoppingLists    ShoppingList[]
+  pantryItems      PantryItem[]
 }
 
 model VerificationToken {
@@ -176,14 +177,36 @@ model ShoppingList {
 }
 
 model ShoppingListItem {
-  id             String       @id @default(uuid())
-  name           String
-  quantity       String       @default("1")
-  unit           String?
-  category       String       @default("other")
-  checked        Boolean      @default(false)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  shoppingListId String
-  shoppingList   ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+  id                 String       @id @default(uuid())
+  name               String
+  quantity           String       @default("1")
+  unit               String?
+  category           String       @default("other")
+  checked            Boolean      @default(false)
+  bulkBuying         Boolean      @default(false)
+  originalIngredients Json?
+  orderPosition      Int          @default(0)
+  excludedFromPantry Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  shoppingListId     String
+  shoppingList       ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+}
+
+model PantryItem {
+  id               String    @id @default(uuid())
+  name             String
+  quantity         String    @default("1")
+  unit             String?
+  category         String    @default("other")
+  usuallyHaveOnHand Boolean   @default(true)
+  currentAmount    String    @default("0")
+  minimumAmount    String?
+  expirationDate   DateTime?
+  needsRestock     Boolean   @default(false)
+  notifyWhenLow    Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

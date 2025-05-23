@@ -10,6 +10,8 @@ const protectedPaths = [
   '/upload-recipe',
   // DEPLOYMENT CHANGE: Temporarily disabled authentication protection for shopping list
   // '/shopping-list'
+  // DEPLOYMENT CHANGE: Temporarily disabled authentication protection for pantry
+  // '/pantry'
 ];
 
 // List of paths that are only for unauthenticated users
@@ -57,6 +59,8 @@ export const config = {
     '/settings/:path*',
     '/upload-recipe/:path*',
     // DEPLOYMENT CHANGE: Temporarily disabled matcher for shopping list path
-    // '/shopping-list/:path*'
+    // '/shopping-list/:path*',
+    // DEPLOYMENT CHANGE: Temporarily disabled matcher for pantry path
+    // '/pantry/:path*'
   ]
 };

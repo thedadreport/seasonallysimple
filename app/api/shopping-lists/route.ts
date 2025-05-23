@@ -9,7 +9,6 @@ import {
   IngredientItem, 
   ConsolidatedIngredient 
 } from '@/lib/utils/ingredientUtils';
-import { shouldExcludeFromShoppingList } from '@/lib/utils/pantryUtils';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +16,6 @@ const prisma = new PrismaClient();
 const shoppingListCreateSchema = z.object({
   mealPlanId: z.string().uuid({ message: "Valid mealPlanId is required" }),
   name: z.string().optional(),
-  includePantryItems: z.boolean().optional().default(false),
 });
 
 // Format the ingredient quantity and unit for display
@@ -51,7 +49,7 @@ export const POST = withAuth(async (request: NextRequest) => {
       );
     }
     
-    const { mealPlanId, name, includePantryItems } = validationResult.data;
+    const { mealPlanId, name } = validationResult.data;
     
     // Verify the meal plan exists and belongs to the user
     const mealPlan = await prisma.mealPlan.findFirst({
@@ -122,29 +120,11 @@ export const POST = withAuth(async (request: NextRequest) => {
     // Use the smart ingredient consolidation system
     const consolidatedIngredients = consolidateIngredients(rawIngredients);
     
-    // Get user's pantry items to check for exclusions
-    let pantryItems: any[] = [];
-    if (!includePantryItems) {
-      pantryItems = await prisma.pantryItem.findMany({
-        where: {
-          userId: session.user.id,
-          usuallyHaveOnHand: true
-        }
-      });
-    }
+    // Pantry integration removed
     
-    // Create shopping list items from the consolidated ingredients, excluding pantry items if needed
+    // Create shopping list items from the consolidated ingredients
     const shoppingListItems = await Promise.all(
       consolidatedIngredients.map(async (ingredient, index) => {
-        // Check if this ingredient should be excluded based on pantry settings
-        const excludeFromPantry = !includePantryItems && 
-          pantryItems.length > 0 && 
-          shouldExcludeFromShoppingList(ingredient, pantryItems);
-        
-        // Skip adding the item if it should be excluded
-        if (excludeFromPantry) {
-          return null;
-        }
         
         return prisma.shoppingListItem.create({
           data: {
@@ -156,7 +136,6 @@ export const POST = withAuth(async (request: NextRequest) => {
             unit: ingredient.unit || null,
             category: ingredient.category || 'other',
             bulkBuying: ingredient.bulkBuying || false,
-            excludedFromPantry: excludeFromPantry,
             orderPosition: index,
             // Save original ingredients data for tooltip display
             originalIngredients: ingredient.originalIngredients 

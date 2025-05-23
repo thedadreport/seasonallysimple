@@ -26,6 +26,8 @@
     "axios": "^1.4.0",
     "bcryptjs": "^3.0.2",
     "date-fns": "^2.30.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.1",
     "next": "^14.0.0",
     "next-auth": "^5.0.0-beta.28",
     "pg": "^8.16.0",
