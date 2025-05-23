@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSessionWrapper } from '@/lib/auth/session';
-import authOptions from '@/lib/auth/authOptions';
+import { Session } from '@/lib/auth/session';
+import { withAuth, validateRequiredFields } from '@/lib/auth/apiAuth';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -68,29 +68,20 @@ function categorizeIngredient(name: string): string {
 }
 
 // POST - Create a new shopping list from meal plan
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, session: Session) => {
   try {
-    const session = await getServerSessionWrapper();
-    
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
     const data = await request.json();
     const { mealPlanId, name } = data;
     
-    if (!mealPlanId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
+    // Validate required fields
+    const validationError = validateRequiredFields(data, ['mealPlanId']);
+    if (validationError) return validationError;
     
     // Verify the meal plan exists and belongs to the user
     const mealPlan = await prisma.mealPlan.findFirst({
       where: {
         id: mealPlanId,
-        userId: session.user.id,
+        userId: session.user?.id,
       },
       include: {
         items: {
@@ -112,7 +103,7 @@ export async function POST(request: NextRequest) {
     const shoppingList = await prisma.shoppingList.create({
       data: {
         name: name || `Shopping List for ${mealPlan.name}`,
-        userId: session.user.id,
+        userId: session.user?.id as string,
         mealPlanId: mealPlanId,
       },
     });
@@ -168,20 +159,14 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // GET - Get all shopping lists for the current user
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, session: Session) => {
   try {
-    const session = await getServerSessionWrapper();
-    
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
     const shoppingLists = await prisma.shoppingList.findMany({
       where: {
-        userId: session.user.id,
+        userId: session.user?.id,
       },
       include: {
         mealPlan: true,
@@ -205,4 +190,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

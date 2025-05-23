@@ -31,6 +31,17 @@ const authConfig: NextAuthConfig = {
           return null;
         }
         
+        // Development mode authentication bypass
+        if (isDevelopmentMode) {
+          console.log('DEVELOPMENT MODE: All login credentials accepted');
+          
+          return {
+            id: `dev-user-${Date.now()}`,
+            email: credentials.email as string,
+            name: "Development User",
+          };
+        }
+        
         try {
           const email = credentials.email as string;
           const user = await prisma.user.findUnique({
@@ -68,11 +79,19 @@ const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   callbacks: {
+    // Ensure user ID is properly included in the session
     async session({ session, token }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
       }
       return session;
+    },
+    // Add user ID to the JWT token
+    async jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id;
+      }
+      return token;
     },
   },
 };
