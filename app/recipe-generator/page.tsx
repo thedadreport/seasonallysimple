@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { z } from 'zod';
 
 // Define the form schema
@@ -28,10 +30,14 @@ const dietaryRestrictionOptions = [
 ];
 
 export default function RecipeGenerator() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [generatedRecipe, setGeneratedRecipe] = useState<any>(null);
   
-  const { register, handleSubmit, control, formState: { errors } } = useForm<RecipeFormValues>({
+  const { register, handleSubmit, formState: { errors } } = useForm<RecipeFormValues>({
     defaultValues: {
       cookingTime: 'THIRTY_MINUTES_OR_LESS',
       season: 'SPRING', // We would get this dynamically in a real implementation
@@ -44,6 +50,7 @@ export default function RecipeGenerator() {
 
   const onSubmit = async (data: RecipeFormValues) => {
     setIsGenerating(true);
+    setSaveStatus('idle');
     
     try {
       // Call our API endpoint for recipe generation
@@ -75,6 +82,84 @@ export default function RecipeGenerator() {
 
   const handleStartOver = () => {
     setGeneratedRecipe(null);
+    setSaveStatus('idle');
+  };
+
+  const handleSaveRecipe = async () => {
+    // Check if user is logged in
+    if (status !== 'authenticated') {
+      router.push('/login?returnUrl=/recipe-generator');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveStatus('idle');
+
+    try {
+      // Format the recipe data according to the API schema
+      const recipeData = {
+        title: generatedRecipe.title,
+        description: generatedRecipe.description,
+        timings: {
+          prep: generatedRecipe.timings.prep,
+          cook: generatedRecipe.timings.cook,
+          total: generatedRecipe.timings.total,
+        },
+        ingredients: generatedRecipe.ingredients.map((ing: any) => ({
+          amount: ing.amount,
+          unit: ing.unit || null,
+          name: ing.name,
+        })),
+        instructions: generatedRecipe.instructions.map((ins: any) => ({
+          stepNumber: ins.stepNumber,
+          text: ins.text,
+        })),
+        nutritionInfo: {
+          calories: generatedRecipe.nutritionInfo.calories,
+          protein: generatedRecipe.nutritionInfo.protein,
+          carbs: generatedRecipe.nutritionInfo.carbs,
+          fat: generatedRecipe.nutritionInfo.fat,
+          fiber: generatedRecipe.nutritionInfo.fiber || null,
+          sodium: generatedRecipe.nutritionInfo.sodium || null,
+        },
+        difficulty: generatedRecipe.skillLevel || 'BEGINNER',
+        season: generatedRecipe.season || 'ALL',
+        cuisineType: generatedRecipe.cuisineType,
+        dietaryTags: Array.isArray(generatedRecipe.dietaryTags) 
+          ? generatedRecipe.dietaryTags.join(',') 
+          : (generatedRecipe.dietaryTags || ''),
+        servings: generatedRecipe.servings || 4,
+        tips: generatedRecipe.tips || null,
+        imageUrl: generatedRecipe.imageUrl || null,
+        isAIGenerated: true,
+      };
+
+      // Call the API to save the recipe
+      const response = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recipeData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error?.message || 'Failed to save recipe');
+      }
+
+      setSaveStatus('success');
+      
+      // Optionally redirect to the saved recipe
+      setTimeout(() => {
+        router.push(`/recipes/${result.data.id}`);
+      }, 1500);
+      
+    } catch (error) {
+      console.error('Error saving recipe:', error);
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const cookingTimeDisplay = {
@@ -275,12 +360,32 @@ export default function RecipeGenerator() {
             <p>{generatedRecipe.tips}</p>
           </div>
           
+          {saveStatus === 'success' && (
+            <div className="mb-4 p-3 bg-green-100 text-green-800 rounded-md">
+              Recipe saved successfully! Redirecting to recipe page...
+            </div>
+          )}
+          
+          {saveStatus === 'error' && (
+            <div className="mb-4 p-3 bg-red-100 text-red-800 rounded-md">
+              Failed to save recipe. Please try again.
+            </div>
+          )}
+          
           <div className="flex gap-4">
-            <button onClick={handleStartOver} className="btn-secondary">
+            <button 
+              onClick={handleStartOver} 
+              className="btn-secondary"
+              disabled={isSaving}
+            >
               Generate Another Recipe
             </button>
-            <button className="btn-primary">
-              Save This Recipe
+            <button 
+              onClick={handleSaveRecipe} 
+              className="btn-primary"
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : 'Save This Recipe'}
             </button>
           </div>
         </div>
