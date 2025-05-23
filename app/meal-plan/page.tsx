@@ -241,6 +241,7 @@ export default function MealPlanPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedMealType, setSelectedMealType] = useState<string | undefined>();
   const [selectedDayId, setSelectedDayId] = useState<string | undefined>();
+  const [removeFeedback, setRemoveFeedback] = useState<{ dayId: string; mealType: string } | null>(null);
   
   const handleGenerateShoppingList = () => {
     // In a real app, this would call an API to create a shopping list
@@ -280,6 +281,34 @@ export default function MealPlanPage() {
     
     // Close the sidebar after selecting a recipe
     setSidebarOpen(false);
+  };
+  
+  const handleRemoveMeal = (dayId: string, mealType: string) => {
+    // Find the day and set the recipe to null for the specified meal type
+    setMealPlan((prevMealPlan: MealPlan): MealPlan => {
+      const updatedMeals = prevMealPlan.meals.map(day => {
+        if (day.id === dayId) {
+          const updatedDayMeals = day.meals.map(meal => {
+            if (meal.type === mealType.toUpperCase()) {
+              return { ...meal, recipe: null };
+            }
+            return meal;
+          });
+          return { ...day, meals: updatedDayMeals };
+        }
+        return day;
+      });
+      
+      return { ...prevMealPlan, meals: updatedMeals };
+    });
+    
+    // Show feedback that meal was removed
+    setRemoveFeedback({ dayId, mealType });
+    
+    // Clear feedback after 2 seconds
+    setTimeout(() => {
+      setRemoveFeedback(null);
+    }, 2000);
   };
   
   const handleCloseSidebar = () => {
@@ -346,10 +375,27 @@ export default function MealPlanPage() {
           {mealPlan.meals.map(day => (
             <div 
               key={day.id} 
-              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''}`}
+              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''} relative`}
             >
+              {removeFeedback && removeFeedback.dayId === day.id && removeFeedback.mealType.toUpperCase() === 'BREAKFAST' && (
+                <div className="absolute z-10 inset-0 flex items-center justify-center bg-sage bg-opacity-20 rounded">
+                  <div className="bg-white p-2 rounded shadow text-sm text-sage font-medium">
+                    Meal removed
+                  </div>
+                </div>
+              )}
+              
               {day.meals.find(meal => meal.type === 'BREAKFAST')?.recipe ? (
-                <div className="p-2 bg-cream rounded">
+                <div className="p-2 bg-cream rounded relative group">
+                  <button 
+                    onClick={() => handleRemoveMeal(day.id, 'BREAKFAST')}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white bg-opacity-0 group-hover:bg-opacity-90 flex items-center justify-center text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove meal"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                   <div className="font-medium text-sm mb-1">
                     {day.meals.find(meal => meal.type === 'BREAKFAST')?.recipe?.title}
                   </div>
@@ -376,10 +422,27 @@ export default function MealPlanPage() {
           {mealPlan.meals.map(day => (
             <div 
               key={day.id} 
-              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''}`}
+              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''} relative`}
             >
+              {removeFeedback && removeFeedback.dayId === day.id && removeFeedback.mealType.toUpperCase() === 'LUNCH' && (
+                <div className="absolute z-10 inset-0 flex items-center justify-center bg-sage bg-opacity-20 rounded">
+                  <div className="bg-white p-2 rounded shadow text-sm text-sage font-medium">
+                    Meal removed
+                  </div>
+                </div>
+              )}
+              
               {day.meals.find(meal => meal.type === 'LUNCH')?.recipe ? (
-                <div className="p-2 bg-cream rounded">
+                <div className="p-2 bg-cream rounded relative group">
+                  <button 
+                    onClick={() => handleRemoveMeal(day.id, 'LUNCH')}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white bg-opacity-0 group-hover:bg-opacity-90 flex items-center justify-center text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove meal"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                   <div className="font-medium text-sm mb-1">
                     {day.meals.find(meal => meal.type === 'LUNCH')?.recipe?.title}
                   </div>
@@ -406,10 +469,27 @@ export default function MealPlanPage() {
           {mealPlan.meals.map(day => (
             <div 
               key={day.id} 
-              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''}`}
+              className={`py-3 px-4 min-h-24 ${activeDay === day.id ? 'bg-sage bg-opacity-5' : ''} relative`}
             >
+              {removeFeedback && removeFeedback.dayId === day.id && removeFeedback.mealType.toUpperCase() === 'DINNER' && (
+                <div className="absolute z-10 inset-0 flex items-center justify-center bg-sage bg-opacity-20 rounded">
+                  <div className="bg-white p-2 rounded shadow text-sm text-sage font-medium">
+                    Meal removed
+                  </div>
+                </div>
+              )}
+              
               {day.meals.find(meal => meal.type === 'DINNER')?.recipe ? (
-                <div className="p-2 bg-cream rounded">
+                <div className="p-2 bg-cream rounded relative group">
+                  <button 
+                    onClick={() => handleRemoveMeal(day.id, 'DINNER')}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white bg-opacity-0 group-hover:bg-opacity-90 flex items-center justify-center text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove meal"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                   <div className="font-medium text-sm mb-1">
                     {day.meals.find(meal => meal.type === 'DINNER')?.recipe?.title}
                   </div>
