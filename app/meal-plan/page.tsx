@@ -321,19 +321,30 @@ export default function MealPlanPage() {
       }
       
       try {
-        // In a real app, this would be an API call to fetch the meal plan for the specified week
-        // For demo purposes, we'll simulate a network request with a timeout
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Format the date range for the API
+        const startDateStr = currentWeekStart.toISOString().split('T')[0];
+        const endDate = new Date(currentWeekStart);
+        endDate.setDate(endDate.getDate() + 6);
+        const endDateStr = endDate.toISOString().split('T')[0];
         
-        // For the mock data week, use the predefined mockMealPlan
-        const isMockWeek = currentWeekStart.getTime() === mockMealPlan.startDate.getTime();
+        // Make an API call to fetch the meal plan
+        const response = await fetch(`/api/meal-plans?startDate=${startDateStr}&endDate=${endDateStr}`);
         
-        if (isMockWeek) {
-          setMealPlan(mockMealPlan);
-          setActiveDay(mockMealPlan.meals[0].id);
-          mealPlanCache.set(cacheKey, mockMealPlan);
+        if (!response.ok) {
+          throw new Error('Failed to fetch meal plan');
+        }
+        
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          // Convert API data to our frontend format
+          const apiMealPlan = data[0];
+          const formattedMealPlan = formatApiMealPlan(apiMealPlan, currentWeekStart);
+          setMealPlan(formattedMealPlan);
+          setActiveDay(formattedMealPlan.meals[0].id);
+          mealPlanCache.set(cacheKey, formattedMealPlan);
         } else {
-          // Generate an empty meal plan for other weeks
+          // No meal plan found in the database, use an empty one
           const newMealPlan = generateEmptyMealPlan(currentWeekStart);
           setMealPlan(newMealPlan);
           setActiveDay(newMealPlan.meals[0].id);
@@ -353,11 +364,84 @@ export default function MealPlanPage() {
     loadMealPlanForWeek();
   }, [currentWeekStart]);
   
-  // Save changes to the meal plan cache
+  // Helper function to format API meal plan data to our frontend format
+  const formatApiMealPlan = (apiMealPlan: any, startDate: Date): MealPlan => {
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    
+    // Get empty meal plan structure with the same date range
+    const emptyMealPlan = generateEmptyMealPlan(startDate);
+    
+    // Fill in recipes from API data
+    if (apiMealPlan.items && apiMealPlan.items.length > 0) {
+      for (const item of apiMealPlan.items) {
+        const itemDate = new Date(item.date);
+        const dayIndex = Math.floor((itemDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (dayIndex >= 0 && dayIndex < 7) {
+          const day = emptyMealPlan.meals[dayIndex];
+          const meal = day.meals.find(m => m.type === item.mealType);
+          
+          if (meal) {
+            meal.recipe = {
+              id: item.recipe.id,
+              title: item.recipe.title,
+              prepTime: item.recipe.prepTime,
+              cookTime: item.recipe.cookTime,
+              totalTime: item.recipe.totalTime,
+              servings: item.recipe.servings,
+              estimatedCostPerServing: 3.75, // Placeholder until API provides this
+            };
+          }
+        }
+      }
+    }
+    
+    return emptyMealPlan;
+  };
+  
+  // Save changes to the meal plan database and local cache
   useEffect(() => {
-    const cacheKey = currentWeekStart.toISOString().split('T')[0];
-    mealPlanCache.set(cacheKey, mealPlan);
-  }, [mealPlan, currentWeekStart]);
+    const saveMealPlan = async () => {
+      if (isLoading) return; // Don't save during initial load
+      
+      const cacheKey = currentWeekStart.toISOString().split('T')[0];
+      mealPlanCache.set(cacheKey, mealPlan);
+      
+      try {
+        // Format data for API
+        const mealPlanData = {
+          name: `Meal Plan ${formatDate(mealPlan.startDate)} - ${formatDate(mealPlan.endDate)}`,
+          startDate: mealPlan.startDate.toISOString(),
+          endDate: mealPlan.endDate.toISOString(),
+          meals: mealPlan.meals
+        };
+        
+        // Save to API
+        const response = await fetch('/api/meal-plans', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(mealPlanData),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to save meal plan');
+        }
+        
+        // Successfully saved
+        console.log('Meal plan saved successfully');
+      } catch (error) {
+        console.error('Error saving meal plan:', error);
+        // We still keep the local cache even if API save fails
+      }
+    };
+    
+    // Use a debounce to avoid too many API calls
+    const timeoutId = setTimeout(saveMealPlan, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [mealPlan, currentWeekStart, isLoading]);
   
   const handleNavigateWeek = (direction: 'prev' | 'next') => {
     const weeksToAdd = direction === 'next' ? 1 : -1;
