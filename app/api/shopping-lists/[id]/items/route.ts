@@ -222,7 +222,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
       
       // Validate single or multiple item request
-      let validatedData;
+      let validatedData: { items: any[] } | any;
       let isMultipleItems = false;
       
       try {
@@ -263,7 +263,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       // Find highest order position to place new items at the end
       const highestPosition = await prisma.shoppingListItem.findFirst({
         where: { shoppingListId },
-        orderBy: { orderPosition: 'desc' },
+        orderBy: [{ orderPosition: 'desc' }],
         select: { orderPosition: true }
       }).catch(error => {
         console.error('Database error when finding highest position:', error);
@@ -274,7 +274,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       
       if (isMultipleItems) {
         // Add multiple items
-        const itemsToCreate = validatedData.items.map((item, index) => {
+        const itemsToCreate = validatedData.items.map((item: any, index: number) => {
           // Auto-categorize if category is not provided
           const category = item.category || categorizeIngredient(item.name);
           
@@ -300,9 +300,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         const items = await prisma.shoppingListItem.findMany({
           where: {
             shoppingListId,
-            name: { in: itemsToCreate.map(item => item.name) }
+            name: { in: itemsToCreate.map((item: any) => item.name) }
           },
-          orderBy: { orderPosition: 'asc' }
+          orderBy: [{ orderPosition: 'asc' }]
         });
         
         return NextResponse.json({

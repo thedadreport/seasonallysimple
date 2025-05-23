@@ -3,90 +3,24 @@ import { auth } from "@/auth";
 import { withAuth } from '@/lib/auth/apiAuth';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { 
+  consolidateIngredients, 
+  normalizeIngredientName, 
+  IngredientItem, 
+  ConsolidatedIngredient 
+} from '@/lib/utils/ingredientUtils';
+import { shouldExcludeFromShoppingList } from '@/lib/utils/pantryUtils';
 
 const prisma = new PrismaClient();
-
-// Helper function to categorize ingredients
-function categorizeIngredient(name: string): string {
-  const categories = {
-    produce: [
-      'apple', 'banana', 'orange', 'lemon', 'lime', 'grape', 'berry', 'strawberry', 'blueberry',
-      'raspberry', 'blackberry', 'melon', 'watermelon', 'cantaloupe', 'honeydew', 'pineapple',
-      'kiwi', 'mango', 'papaya', 'peach', 'pear', 'plum', 'cherry', 'olive', 'avocado',
-      'tomato', 'potato', 'sweet potato', 'yam', 'carrot', 'celery', 'cucumber', 'zucchini',
-      'squash', 'pumpkin', 'eggplant', 'pepper', 'onion', 'garlic', 'ginger', 'shallot', 'leek',
-      'broccoli', 'cauliflower', 'cabbage', 'brussels sprout', 'kale', 'spinach', 'lettuce',
-      'arugula', 'chard', 'collard', 'mushroom', 'asparagus', 'green bean', 'pea', 'corn',
-      'radish', 'turnip', 'beet', 'rutabaga', 'artichoke', 'fennel', 'parsnip', 'herbs',
-      'basil', 'cilantro', 'mint', 'parsley', 'rosemary', 'thyme', 'sage', 'oregano', 'dill',
-      'chive', 'salad', 'arugula'
-    ],
-    dairy: [
-      'milk', 'cream', 'half-and-half', 'buttermilk', 'yogurt', 'butter', 'cheese', 'cheddar',
-      'mozzarella', 'parmesan', 'gouda', 'swiss', 'brie', 'feta', 'cream cheese', 'cottage cheese',
-      'ricotta', 'sour cream', 'ice cream', 'whipping cream', 'clotted cream', 'ghee', 'egg'
-    ],
-    meat: [
-      'beef', 'steak', 'ground beef', 'pork', 'ham', 'bacon', 'sausage', 'salami', 'prosciutto',
-      'lamb', 'veal', 'chicken', 'turkey', 'duck', 'goose', 'quail', 'pheasant', 'venison',
-      'bison', 'filet', 'sirloin', 'rib', 'roast', 'chop', 'loin', 'breast', 'thigh', 'wing',
-      'drumstick', 'ground'
-    ],
-    seafood: [
-      'fish', 'salmon', 'tuna', 'trout', 'cod', 'halibut', 'tilapia', 'sardine', 'anchovy',
-      'shrimp', 'prawn', 'crab', 'lobster', 'clam', 'mussel', 'oyster', 'scallop', 'squid',
-      'octopus', 'caviar'
-    ],
-    grains: [
-      'flour', 'bread', 'roll', 'baguette', 'tortilla', 'pita', 'naan', 'pasta', 'noodle',
-      'rice', 'quinoa', 'couscous', 'barley', 'oat', 'oatmeal', 'corn', 'cornmeal', 'grits',
-      'polenta', 'cereal', 'granola', 'cracker', 'chip', 'crisp', 'pretzel'
-    ],
-    pantry: [
-      'oil', 'vinegar', 'salt', 'pepper', 'spice', 'herb', 'extract', 'vanilla', 'cinnamon',
-      'nutmeg', 'paprika', 'cumin', 'coriander', 'curry', 'chili', 'bay leaf', 'sauce',
-      'ketchup', 'mustard', 'mayonnaise', 'soy sauce', 'hot sauce', 'barbecue sauce',
-      'salsa', 'jam', 'jelly', 'honey', 'syrup', 'sugar', 'brown sugar', 'powdered sugar',
-      'stevia', 'artificial sweetener', 'molasses', 'maple', 'chocolate', 'cocoa', 'coffee',
-      'tea', 'juice', 'soda', 'water', 'broth', 'stock', 'wine', 'beer', 'liquor', 'rum',
-      'vodka', 'whiskey', 'brandy', 'gin', 'tequila', 'bourbon', 'canned', 'tomato paste',
-      'tomato sauce', 'diced tomato', 'bean', 'chickpea', 'lentil', 'tuna', 'soup',
-      'baking powder', 'baking soda', 'yeast', 'baking', 'frosting'
-    ]
-  };
-
-  const lowercaseName = name.toLowerCase();
-  
-  // Check each category for matching words
-  for (const [category, keywords] of Object.entries(categories)) {
-    if (keywords.some(keyword => lowercaseName.includes(keyword))) {
-      return category;
-    }
-  }
-  
-  // Default category if no match is found
-  return 'other';
-}
 
 // Zod schema for shopping list creation
 const shoppingListCreateSchema = z.object({
   mealPlanId: z.string().uuid({ message: "Valid mealPlanId is required" }),
   name: z.string().optional(),
+  includePantryItems: z.boolean().optional().default(false),
 });
 
-// Type for recipe ingredient as stored in the database JSON
-type RecipeIngredient = {
-  amount: string;
-  unit: string;
-  name: string;
-};
-
-// Normalize an ingredient name for comparison
-function normalizeIngredientName(name: string): string {
-  return name.toLowerCase().trim();
-}
-
-// Format the ingredient quantity
+// Format the ingredient quantity and unit for display
 function formatQuantity(amount: string, unit: string): string {
   if (!unit) return amount;
   return `${amount} ${unit}`;
@@ -117,7 +51,7 @@ export const POST = withAuth(async (request: NextRequest) => {
       );
     }
     
-    const { mealPlanId, name } = validationResult.data;
+    const { mealPlanId, name, includePantryItems } = validationResult.data;
     
     // Verify the meal plan exists and belongs to the user
     const mealPlan = await prisma.mealPlan.findFirst({
@@ -156,8 +90,8 @@ export const POST = withAuth(async (request: NextRequest) => {
       throw error;
     });
     
-    // Extract and consolidate ingredients from the meal plan
-    const ingredientsMap = new Map<string, { name: string; quantity: string; unit?: string; category: string }>();
+    // Extract ingredients from the meal plan
+    const rawIngredients: IngredientItem[] = [];
     
     // Process each recipe in the meal plan
     for (const mealPlanItem of mealPlan.items) {
@@ -172,22 +106,11 @@ export const POST = withAuth(async (request: NextRequest) => {
         // If we have structured ingredients in the database, use those
         if (recipeIngredients.length > 0) {
           for (const ingredient of recipeIngredients) {
-            const normalizedName = normalizeIngredientName(ingredient.name);
-            const category = categorizeIngredient(ingredient.name);
-            const quantity = formatQuantity(ingredient.amount, ingredient.unit || '');
-            
-            if (ingredientsMap.has(normalizedName)) {
-              // If the ingredient already exists in our map, we don't need to add it again
-              // In a more advanced version, we could consolidate quantities
-              continue;
-            } else {
-              ingredientsMap.set(normalizedName, {
-                name: ingredient.name,
-                quantity: quantity,
-                unit: ingredient.unit || undefined,
-                category: category
-              });
-            }
+            rawIngredients.push({
+              name: ingredient.name,
+              quantity: ingredient.amount,
+              unit: ingredient.unit || null
+            });
           }
         } 
       } catch (error) {
@@ -196,16 +119,49 @@ export const POST = withAuth(async (request: NextRequest) => {
       }
     }
     
-    // Create shopping list items from the consolidated ingredients
+    // Use the smart ingredient consolidation system
+    const consolidatedIngredients = consolidateIngredients(rawIngredients);
+    
+    // Get user's pantry items to check for exclusions
+    let pantryItems: any[] = [];
+    if (!includePantryItems) {
+      pantryItems = await prisma.pantryItem.findMany({
+        where: {
+          userId: session.user.id,
+          usuallyHaveOnHand: true
+        }
+      });
+    }
+    
+    // Create shopping list items from the consolidated ingredients, excluding pantry items if needed
     const shoppingListItems = await Promise.all(
-      Array.from(ingredientsMap.values()).map(async (ingredient) => {
+      consolidatedIngredients.map(async (ingredient, index) => {
+        // Check if this ingredient should be excluded based on pantry settings
+        const excludeFromPantry = !includePantryItems && 
+          pantryItems.length > 0 && 
+          shouldExcludeFromShoppingList(ingredient, pantryItems);
+        
+        // Skip adding the item if it should be excluded
+        if (excludeFromPantry) {
+          return null;
+        }
+        
         return prisma.shoppingListItem.create({
           data: {
             shoppingListId: shoppingList.id,
-            name: ingredient.name,
+            name: ingredient.bulkBuying 
+              ? `${ingredient.name} (Consider buying in bulk)`
+              : ingredient.name,
             quantity: ingredient.quantity,
-            unit: ingredient.unit,
-            category: ingredient.category,
+            unit: ingredient.unit || null,
+            category: ingredient.category || 'other',
+            bulkBuying: ingredient.bulkBuying || false,
+            excludedFromPantry: excludeFromPantry,
+            orderPosition: index,
+            // Save original ingredients data for tooltip display
+            originalIngredients: ingredient.originalIngredients 
+              ? Prisma.JsonNull 
+              : undefined
           },
         }).catch((error) => {
           console.error(`Error creating shopping list item for ${ingredient.name}:`, error);
@@ -340,18 +296,20 @@ export const GET = withAuth(async (request: NextRequest) => {
       whereConditions.mealPlanId = mealPlanId;
     }
     
+    // Build date filter
+    let dateFilter: any = {};
+    
     if (startDate) {
-      whereConditions.createdAt = {
-        ...whereConditions.createdAt,
-        gte: startDate
-      };
+      dateFilter.gte = startDate;
     }
     
     if (endDate) {
-      whereConditions.createdAt = {
-        ...whereConditions.createdAt,
-        lte: endDate
-      };
+      dateFilter.lte = endDate;
+    }
+    
+    // Only add the date filter if we have date constraints
+    if (Object.keys(dateFilter).length > 0) {
+      whereConditions.createdAt = dateFilter;
     }
     
     if (searchTerm) {

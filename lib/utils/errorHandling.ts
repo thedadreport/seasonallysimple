@@ -70,7 +70,7 @@ export function handleError(
       toast.error(message); // Using error toast for warnings too, but could be customized
       break;
     case 'info':
-      toast.info(message);
+      toast(message);
       break;
   }
 }

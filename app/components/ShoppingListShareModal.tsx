@@ -21,16 +21,19 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
   // Check if PDF generation is supported (only in client-side environment)
   useEffect(() => {
     const checkPdfSupport = async () => {
-      try {
-        // Check if we can require these modules
-        if (typeof window !== 'undefined') {
-          require('html2canvas');
-          require('jspdf');
-          setPdfSupported(true);
+      if (typeof window !== 'undefined') {
+        try {
+          // Use dynamic imports instead of require
+          const modules = await Promise.all([
+            import('html2canvas').catch(() => null),
+            import('jspdf').catch(() => null)
+          ]);
+          
+          setPdfSupported(modules[0] !== null && modules[1] !== null);
+        } catch (err) {
+          console.warn('PDF generation not supported:', err);
+          setPdfSupported(false);
         }
-      } catch (err) {
-        console.warn('PDF generation not supported:', err);
-        setPdfSupported(false);
       }
     };
     
@@ -94,9 +97,12 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
     try {
       // Only import these libraries on the client side
       if (typeof window !== 'undefined') {
-        // Using require instead of import for better compatibility with Next.js
-        const html2canvas = require('html2canvas').default;
-        const jsPDF = require('jspdf').default;
+        // Using dynamic imports
+        const html2canvasModule = await import('html2canvas');
+        const jsPDFModule = await import('jspdf');
+        
+        const html2canvas = html2canvasModule.default;
+        const jsPDF = jsPDFModule.default;
         
         const canvas = await html2canvas(printPreviewRef.current, {
           scale: 2,

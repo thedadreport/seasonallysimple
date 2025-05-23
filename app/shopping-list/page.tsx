@@ -328,7 +328,7 @@ export default function ShoppingListPage() {
       .map(item => item.id);
     
     if (itemIds.length === 0) {
-      toast.info('No items to update');
+      toast('No items to update');
       return;
     }
     
@@ -773,7 +773,7 @@ export default function ShoppingListPage() {
                       <div className={`flex-grow ${item.checked ? 'line-through text-gray-400' : ''}`}>
                         <div className="font-medium relative group">
                           {item.name}
-                          {item.originalIngredients && item.originalIngredients.length > 1 && (
+                          {item.originalIngredients && typeof item.originalIngredients !== 'string' && item.originalIngredients.length > 1 && (
                             <div className="hidden group-hover:block absolute z-10 bg-white p-3 rounded-lg shadow-lg w-60 border border-gray-200 left-0 top-6">
                               <div className="text-xs font-semibold text-gray-500 mb-1">Consolidated from:</div>
                               <ul className="text-xs text-gray-600">
@@ -785,7 +785,7 @@ export default function ShoppingListPage() {
                               </ul>
                             </div>
                           )}
-                          {item.originalIngredients && item.originalIngredients.length > 1 && (
+                          {item.originalIngredients && typeof item.originalIngredients !== 'string' && item.originalIngredients.length > 1 && (
                             <span className="ml-2 text-xs text-blue-500 align-text-top cursor-help">
                               (combined)
                             </span>
