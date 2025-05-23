@@ -18,28 +18,10 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
   const [pdfSupported, setPdfSupported] = useState(false);
   const printPreviewRef = useRef<HTMLDivElement>(null);
   
-  // Check if PDF generation is supported (only in client-side environment)
+  // PDF generation is disabled for now
   useEffect(() => {
-    // In server-side rendering, always set to false initially
-    if (typeof window === 'undefined') {
-      setPdfSupported(false);
-      return;
-    }
-    
-    // For client-side, we'll do a lazy-load of the PDF utility
-    const checkPdfSupport = async () => {
-      try {
-        // Dynamically import the utility to avoid server-side issues
-        const pdfUtilsModule = await import('@/lib/utils/clientOnly/pdfUtils');
-        const supported = await pdfUtilsModule.isPdfGenerationSupported();
-        setPdfSupported(supported);
-      } catch (err) {
-        console.warn('PDF generation not supported:', err);
-        setPdfSupported(false);
-      }
-    };
-    
-    checkPdfSupport();
+    // Always set to false to disable PDF functionality
+    setPdfSupported(false);
   }, []);
 
   if (!isOpen || !shoppingList) return null;
@@ -90,28 +72,10 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
     window.print();
   };
 
-  // Handle PDF generation
+  // PDF generation is disabled for now
   const handlePDFDownload = async () => {
-    if (!printPreviewRef.current || typeof window === 'undefined') return;
-    
-    setIsLoading(true);
-    
-    try {
-      // Dynamically import the PDF utility to prevent server-side rendering issues
-      const pdfUtilsModule = await import('@/lib/utils/clientOnly/pdfUtils');
-      
-      // Generate the PDF using our utility function
-      await pdfUtilsModule.generatePDF(printPreviewRef.current, {
-        filename: `${shoppingList.name.replace(/\s+/g, '-').toLowerCase()}.pdf`
-      });
-      
-      toast.success('PDF downloaded successfully');
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      toast.error('Failed to generate PDF');
-    } finally {
-      setIsLoading(false);
-    }
+    toast.error('PDF generation is currently unavailable');
+    return;
   };
 
   // Handle email sharing
@@ -264,17 +228,17 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
                     Print
                   </button>
                 </li>
+                {/* PDF generation disabled for now */}
                 <li>
                   <button 
-                    onClick={() => setShareOption('pdf')} 
-                    className={`w-full text-left px-3 py-2 rounded-md flex items-center ${shareOption === 'pdf' ? 'bg-sage text-white' : 'hover:bg-gray-100'}`}
-                    disabled={!pdfSupported}
-                    title={!pdfSupported ? 'PDF generation not available' : 'Download as PDF'}
+                    onClick={() => toast('PDF download is temporarily unavailable')}
+                    className="w-full text-left px-3 py-2 rounded-md flex items-center text-gray-400 cursor-not-allowed"
+                    disabled={true}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Download PDF {!pdfSupported && '(Not Available)'}
+                    Download PDF (Not Available)
                   </button>
                 </li>
                 <li>
@@ -372,7 +336,10 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
             
             {shareOption === 'pdf' && (
               <div>
-                <p className="text-gray-600 mb-4">Download your shopping list as a PDF to use offline.</p>
+                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-md mb-4">
+                  <p className="text-sm font-medium">PDF generation is temporarily unavailable.</p>
+                  <p className="text-xs mt-1">Please use the print option instead, which provides similar functionality.</p>
+                </div>
                 
                 <div ref={printPreviewRef} className="border border-gray-200 rounded-lg p-4 mb-4 print-preview">
                   <h2 className="text-2xl font-serif font-bold text-navy mb-2">{shoppingList.name}</h2>
@@ -404,30 +371,12 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
                   </div>
                 </div>
                 
-                {pdfSupported ? (
-                  <button
-                    onClick={handlePDFDownload}
-                    className="btn-primary w-full"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Generating PDF...
-                      </span>
-                    ) : (
-                      'Download PDF'
-                    )}
-                  </button>
-                ) : (
-                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-md">
-                    <p className="text-sm font-medium">PDF generation is not available in this environment.</p>
-                    <p className="text-xs mt-1">Please use the print option instead.</p>
-                  </div>
-                )}
+                <button
+                  onClick={handlePrint}
+                  className="btn-primary w-full"
+                >
+                  Print Instead
+                </button>
               </div>
             )}
             
