@@ -234,7 +234,63 @@ export default function RecipeSearchSidebar({
               </svg>
               <p>{error}</p>
               <button 
-                onClick={() => setIsOpen(true)} // This will trigger the useEffect to refetch
+                onClick={() => {
+                  // Create a new instance of the error handler to trigger a refetch
+                  setError(null);
+                  setIsLoading(true);
+                  // Use setTimeout to simulate closing and reopening the sidebar
+                  setTimeout(() => {
+                    fetch('/api/recipes')
+                      .then(response => {
+                        if (!response.ok) throw new Error('Failed to fetch recipes');
+                        return response.json();
+                      })
+                      .then(data => {
+                        if (data.success && data.data) {
+                          const transformedRecipes: Recipe[] = data.data.map((recipe: any) => ({
+                            id: recipe.id,
+                            title: recipe.title,
+                            prepTime: recipe.timings?.prep || 0,
+                            cookTime: recipe.timings?.cook || 0,
+                            totalTime: recipe.timings?.total || 0,
+                            servings: recipe.servings || 4,
+                            estimatedCostPerServing: 3.50,
+                            dietaryTags: recipe.dietaryTags ? 
+                              (typeof recipe.dietaryTags === 'string' ? recipe.dietaryTags.split(',') : recipe.dietaryTags) : 
+                              [],
+                            difficulty: recipe.difficulty,
+                            season: recipe.season,
+                            cuisineType: recipe.cuisineType
+                          }));
+                          setRecipes(transformedRecipes);
+                          setFilteredRecipes(transformedRecipes);
+                          
+                          // Process tags
+                          const dietaryTagsArray = transformedRecipes.flatMap((r: Recipe) => r.dietaryTags || [])
+                            .filter((tag: string) => tag && tag.trim() !== '');
+                          const tags = Array.from(new Set(dietaryTagsArray));
+                          
+                          const categoryTagsArray = [
+                            ...transformedRecipes.map((r: Recipe) => r.difficulty || ''),
+                            ...transformedRecipes.map((r: Recipe) => r.season || ''),
+                            ...transformedRecipes.map((r: Recipe) => r.cuisineType || '')
+                          ].filter((tag: string) => tag && tag.trim() !== '');
+                          const categoryTags = Array.from(new Set(categoryTagsArray));
+                          
+                          setAllTags([...tags, ...categoryTags]);
+                        } else {
+                          throw new Error('Invalid response format');
+                        }
+                      })
+                      .catch(err => {
+                        console.error('Error refetching recipes:', err);
+                        setError('Failed to load recipes. Please try again.');
+                      })
+                      .finally(() => {
+                        setIsLoading(false);
+                      });
+                  }, 500);
+                }}
                 className="mt-3 text-sage underline text-sm"
               >
                 Try again
