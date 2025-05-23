@@ -59,7 +59,7 @@ export default function RecipeSearchSidebar({
         
         if (data.success && data.data) {
           // Transform the data to match our Recipe interface
-          const transformedRecipes = data.data.map((recipe: any) => ({
+          const transformedRecipes: Recipe[] = data.data.map((recipe: any) => ({
             id: recipe.id,
             title: recipe.title,
             prepTime: recipe.timings?.prep || 0,
@@ -79,18 +79,18 @@ export default function RecipeSearchSidebar({
           
           // Extract all unique tags
           const tags = Array.from(new Set(
-            transformedRecipes.flatMap(recipe => 
+            transformedRecipes.flatMap((recipe: Recipe) => 
               recipe.dietaryTags || []
-            ).filter(tag => tag && tag.trim() !== '')
+            ).filter((tag: string) => tag && tag.trim() !== '')
           ));
           
           // Add additional category tags based on recipe properties
           const categoryTags = [
             ...new Set([
-              ...transformedRecipes.map(r => r.difficulty || ''),
-              ...transformedRecipes.map(r => r.season || ''),
-              ...transformedRecipes.map(r => r.cuisineType || '')
-            ].filter(tag => tag && tag.trim() !== ''))
+              ...transformedRecipes.map((r: Recipe) => r.difficulty || ''),
+              ...transformedRecipes.map((r: Recipe) => r.season || ''),
+              ...transformedRecipes.map((r: Recipe) => r.cuisineType || '')
+            ].filter((tag: string) => tag && tag.trim() !== ''))
           ];
           
           setAllTags([...tags, ...categoryTags]);
