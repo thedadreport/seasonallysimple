@@ -260,9 +260,39 @@ export const POST = withAuth(async (request: NextRequest) => {
   }
 });
 
-// GET - Get all shopping lists for the current user
+// Zod schema for shopping list query parameters
+const shoppingListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(50).default(10),
+  sortBy: z.enum(['createdAt', 'name', 'itemCount']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  mealPlanId: z.string().uuid().optional(),
+  startDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
+  endDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
+  searchTerm: z.string().optional(),
+});
+
+// Shopping list response with metadata
+type ShoppingListWithMetadata = {
+  id: string;
+  name: string;
+  userId: string;
+  mealPlanId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  mealPlan: any | null;
+  itemCounts: {
+    total: number;
+    checked: number;
+    unchecked: number;
+  };
+  items?: any[];
+};
+
+// GET - Get all shopping lists for the current user with pagination and filtering
 export const GET = withAuth(async (request: NextRequest) => {
   try {
+    // Get the session using NextAuth
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -271,40 +301,197 @@ export const GET = withAuth(async (request: NextRequest) => {
       );
     }
     
+    // Parse and validate query parameters
+    const url = new URL(request.url);
+    const queryParams = Object.fromEntries(url.searchParams.entries());
+    
+    const validationResult = shoppingListQuerySchema.safeParse(queryParams);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid query parameters', 
+          details: validationResult.error.format() 
+        },
+        { status: 400 }
+      );
+    }
+    
+    const {
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+      mealPlanId,
+      startDate,
+      endDate,
+      searchTerm
+    } = validationResult.data;
+    
+    // Calculate pagination values
+    const skip = (page - 1) * limit;
+    
+    // Build filter conditions
+    const whereConditions: Prisma.ShoppingListWhereInput = {
+      userId: session.user.id,
+    };
+    
+    // Add optional filters
+    if (mealPlanId) {
+      whereConditions.mealPlanId = mealPlanId;
+    }
+    
+    if (startDate) {
+      whereConditions.createdAt = {
+        ...whereConditions.createdAt,
+        gte: startDate
+      };
+    }
+    
+    if (endDate) {
+      whereConditions.createdAt = {
+        ...whereConditions.createdAt,
+        lte: endDate
+      };
+    }
+    
+    if (searchTerm) {
+      whereConditions.name = {
+        contains: searchTerm,
+        mode: 'insensitive' as Prisma.QueryMode
+      };
+    }
+    
+    // Determine the order by condition
+    // For itemCount sorting, we need to handle it in-memory after fetching
+    // since it's not a direct database field
+    const orderBy: any = {};
+    if (sortBy !== 'itemCount') {
+      orderBy[sortBy] = sortOrder;
+    } else {
+      // Default to createdAt when sorting by itemCount (we'll sort later)
+      orderBy['createdAt'] = 'desc';
+    }
+    
+    // First get the total count for pagination metadata
+    const totalCount = await prisma.shoppingList.count({
+      where: whereConditions
+    }).catch((error) => {
+      console.error('Database error when counting shopping lists:', error);
+      throw new Error(`Database error: ${error.message}`);
+    });
+    
+    // Then fetch the actual shopping lists with items
     const shoppingLists = await prisma.shoppingList.findMany({
-      where: {
-        userId: session.user.id,
-      },
+      where: whereConditions,
       include: {
-        mealPlan: true,
+        mealPlan: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true,
+            endDate: true
+          }
+        },
         items: {
           orderBy: {
             category: 'asc',
           },
         },
+        _count: {
+          select: { items: true }
+        }
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy,
+      skip,
+      take: limit,
     }).catch((error) => {
       console.error('Database error when fetching shopping lists:', error);
       throw new Error(`Database error: ${error.message}`);
     });
     
-    return NextResponse.json(shoppingLists);
+    // Enhance the shopping lists with metadata
+    let enhancedLists: ShoppingListWithMetadata[] = shoppingLists.map(list => {
+      // Calculate item counts
+      const totalItems = list.items.length;
+      const checkedItems = list.items.filter(item => item.checked).length;
+      
+      return {
+        id: list.id,
+        name: list.name,
+        userId: list.userId,
+        mealPlanId: list.mealPlanId,
+        createdAt: list.createdAt,
+        updatedAt: list.updatedAt,
+        mealPlan: list.mealPlan,
+        itemCounts: {
+          total: totalItems,
+          checked: checkedItems,
+          unchecked: totalItems - checkedItems
+        },
+        items: list.items
+      };
+    });
+    
+    // Apply itemCount sorting if requested
+    if (sortBy === 'itemCount') {
+      enhancedLists = enhancedLists.sort((a, b) => {
+        const aCount = a.itemCounts.total;
+        const bCount = b.itemCounts.total;
+        return sortOrder === 'asc' ? aCount - bCount : bCount - aCount;
+      });
+    }
+    
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limit);
+    const hasNextPage = page < totalPages;
+    const hasPreviousPage = page > 1;
+    
+    // Return the enhanced response
+    return NextResponse.json({
+      lists: enhancedLists,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+        hasNextPage,
+        hasPreviousPage
+      }
+    });
     
   } catch (error) {
     console.error('Failed to fetch shopping lists:', error);
     
+    // Handle validation errors
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ 
+        error: 'Invalid request parameters',
+        details: error.format() 
+      }, { status: 400 });
+    }
+    
+    // Handle database errors
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // Handle specific Prisma error codes
+      if (error.code === 'P2025') {
+        return NextResponse.json(
+          { error: 'Resource not found', message: error.message },
+          { status: 404 }
+        );
+      }
+      
       return NextResponse.json(
         { error: 'Database error', message: error.message },
         { status: 500 }
       );
     }
     
+    // Handle other errors
     return NextResponse.json(
-      { error: 'Failed to fetch shopping lists', message: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to fetch shopping lists', 
+        message: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }
