@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Session } from '@/lib/auth/session';
-import { withAuth, validateRequiredFields } from '@/lib/auth/apiAuth';
-import { PrismaClient } from '@prisma/client';
+import { auth } from "@/auth";
+import { withAuth } from '@/lib/auth/apiAuth';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
 
@@ -23,7 +24,7 @@ function categorizeIngredient(name: string): string {
     dairy: [
       'milk', 'cream', 'half-and-half', 'buttermilk', 'yogurt', 'butter', 'cheese', 'cheddar',
       'mozzarella', 'parmesan', 'gouda', 'swiss', 'brie', 'feta', 'cream cheese', 'cottage cheese',
-      'ricotta', 'sour cream', 'ice cream', 'whipping cream', 'clotted cream', 'ghee'
+      'ricotta', 'sour cream', 'ice cream', 'whipping cream', 'clotted cream', 'ghee', 'egg'
     ],
     meat: [
       'beef', 'steak', 'ground beef', 'pork', 'ham', 'bacon', 'sausage', 'salami', 'prosciutto',
@@ -67,21 +68,62 @@ function categorizeIngredient(name: string): string {
   return 'other';
 }
 
+// Zod schema for shopping list creation
+const shoppingListCreateSchema = z.object({
+  mealPlanId: z.string().uuid({ message: "Valid mealPlanId is required" }),
+  name: z.string().optional(),
+});
+
+// Type for recipe ingredient as stored in the database JSON
+type RecipeIngredient = {
+  amount: string;
+  unit: string;
+  name: string;
+};
+
+// Normalize an ingredient name for comparison
+function normalizeIngredientName(name: string): string {
+  return name.toLowerCase().trim();
+}
+
+// Format the ingredient quantity
+function formatQuantity(amount: string, unit: string): string {
+  if (!unit) return amount;
+  return `${amount} ${unit}`;
+}
+
 // POST - Create a new shopping list from meal plan
-export const POST = withAuth(async (request: NextRequest, session: Session) => {
+export const POST = withAuth(async (request: NextRequest) => {
   try {
-    const data = await request.json();
-    const { mealPlanId, name } = data;
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Parse and validate request body
+    const rawData = await request.json();
+    const validationResult = shoppingListCreateSchema.safeParse(rawData);
     
-    // Validate required fields
-    const validationError = validateRequiredFields(data, ['mealPlanId']);
-    if (validationError) return validationError;
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { 
+          error: 'Validation error', 
+          details: validationResult.error.format()
+        },
+        { status: 400 }
+      );
+    }
+    
+    const { mealPlanId, name } = validationResult.data;
     
     // Verify the meal plan exists and belongs to the user
     const mealPlan = await prisma.mealPlan.findFirst({
       where: {
         id: mealPlanId,
-        userId: session.user?.id,
+        userId: session.user.id,
       },
       include: {
         items: {
@@ -94,7 +136,7 @@ export const POST = withAuth(async (request: NextRequest, session: Session) => {
     
     if (!mealPlan) {
       return NextResponse.json(
-        { error: 'Meal plan not found' },
+        { error: 'Meal plan not found or you do not have access to it' },
         { status: 404 }
       );
     }
@@ -103,46 +145,74 @@ export const POST = withAuth(async (request: NextRequest, session: Session) => {
     const shoppingList = await prisma.shoppingList.create({
       data: {
         name: name || `Shopping List for ${mealPlan.name}`,
-        userId: session.user?.id as string,
+        userId: session.user.id,
         mealPlanId: mealPlanId,
       },
+    }).catch((error) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        console.error('Database error when creating shopping list:', error);
+        throw new Error(`Database error: ${error.message}`);
+      }
+      throw error;
     });
     
     // Extract and consolidate ingredients from the meal plan
-    const ingredientsMap = new Map();
+    const ingredientsMap = new Map<string, { name: string; quantity: string; unit?: string; category: string }>();
     
-    // For demo purposes, let's create some mock ingredients since we're using mock data
-    // In a real implementation, we would parse the recipe.ingredients JSON string
-    const mockIngredients = [
-      { name: 'Chicken breast', quantity: '2 lbs', category: 'meat' },
-      { name: 'Brown rice', quantity: '1 cup', category: 'grains' },
-      { name: 'Broccoli', quantity: '1 head', category: 'produce' },
-      { name: 'Olive oil', quantity: '2 tbsp', category: 'pantry' },
-      { name: 'Garlic', quantity: '3 cloves', category: 'produce' },
-      { name: 'Salt', quantity: '1 tsp', category: 'pantry' },
-      { name: 'Black pepper', quantity: '1/2 tsp', category: 'pantry' },
-      { name: 'Asparagus', quantity: '1 bunch', category: 'produce' },
-      { name: 'Arborio rice', quantity: '1 1/2 cups', category: 'grains' },
-      { name: 'Parmesan cheese', quantity: '1/2 cup', category: 'dairy' },
-      { name: 'Avocado', quantity: '2', category: 'produce' },
-      { name: 'Eggs', quantity: '4', category: 'dairy' },
-      { name: 'Bread', quantity: '1 loaf', category: 'grains' },
-      { name: 'Spring vegetables', quantity: '2 cups mixed', category: 'produce' },
-    ];
+    // Process each recipe in the meal plan
+    for (const mealPlanItem of mealPlan.items) {
+      const recipe = mealPlanItem.recipe;
+      
+      try {
+        // Find the associated ingredients for this recipe
+        const recipeIngredients = await prisma.ingredient.findMany({
+          where: { recipeId: recipe.id }
+        });
+        
+        // If we have structured ingredients in the database, use those
+        if (recipeIngredients.length > 0) {
+          for (const ingredient of recipeIngredients) {
+            const normalizedName = normalizeIngredientName(ingredient.name);
+            const category = categorizeIngredient(ingredient.name);
+            const quantity = formatQuantity(ingredient.amount, ingredient.unit || '');
+            
+            if (ingredientsMap.has(normalizedName)) {
+              // If the ingredient already exists in our map, we don't need to add it again
+              // In a more advanced version, we could consolidate quantities
+              continue;
+            } else {
+              ingredientsMap.set(normalizedName, {
+                name: ingredient.name,
+                quantity: quantity,
+                unit: ingredient.unit || undefined,
+                category: category
+              });
+            }
+          }
+        } 
+      } catch (error) {
+        console.error(`Error processing recipe ${recipe.id}:`, error);
+        // Continue with the next recipe rather than failing the entire request
+      }
+    }
     
-    // Create shopping list items
+    // Create shopping list items from the consolidated ingredients
     const shoppingListItems = await Promise.all(
-      mockIngredients.map(async (ingredient) => {
+      Array.from(ingredientsMap.values()).map(async (ingredient) => {
         return prisma.shoppingListItem.create({
           data: {
             shoppingListId: shoppingList.id,
             name: ingredient.name,
             quantity: ingredient.quantity,
+            unit: ingredient.unit,
             category: ingredient.category,
           },
+        }).catch((error) => {
+          console.error(`Error creating shopping list item for ${ingredient.name}:`, error);
+          return null; // Return null for failed items so we can filter them out
         });
       })
-    );
+    ).then(items => items.filter(item => item !== null)); // Filter out any null items
     
     return NextResponse.json({
       message: 'Shopping list created successfully',
@@ -154,19 +224,56 @@ export const POST = withAuth(async (request: NextRequest, session: Session) => {
     
   } catch (error) {
     console.error('Failed to create shopping list:', error);
+    
+    // Provide different error responses based on the error type
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid request data',
+          details: error.format() 
+        },
+        { status: 400 }
+      );
+    }
+    
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // Handle specific Prisma errors
+      if (error.code === 'P2002') {
+        return NextResponse.json(
+          { error: 'A shopping list for this meal plan already exists' },
+          { status: 409 }
+        );
+      }
+      
+      if (error.code === 'P2025') {
+        return NextResponse.json(
+          { error: 'Related record not found' },
+          { status: 404 }
+        );
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create shopping list' },
+      { error: 'Failed to create shopping list', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
 });
 
 // GET - Get all shopping lists for the current user
-export const GET = withAuth(async (request: NextRequest, session: Session) => {
+export const GET = withAuth(async (request: NextRequest) => {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const shoppingLists = await prisma.shoppingList.findMany({
       where: {
-        userId: session.user?.id,
+        userId: session.user.id,
       },
       include: {
         mealPlan: true,
@@ -179,14 +286,25 @@ export const GET = withAuth(async (request: NextRequest, session: Session) => {
       orderBy: {
         createdAt: 'desc',
       },
+    }).catch((error) => {
+      console.error('Database error when fetching shopping lists:', error);
+      throw new Error(`Database error: ${error.message}`);
     });
     
     return NextResponse.json(shoppingLists);
     
   } catch (error) {
     console.error('Failed to fetch shopping lists:', error);
+    
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return NextResponse.json(
+        { error: 'Database error', message: error.message },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to fetch shopping lists' },
+      { error: 'Failed to fetch shopping lists', message: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
