@@ -3,70 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-// Mock data for saved recipes (in a real app, this would come from API)
-const mockSavedRecipes = [
-  {
-    id: '1',
-    title: 'Mediterranean Lemon Herb Chicken with Spring Vegetables',
-    prepTime: 10,
-    cookTime: 20,
-    totalTime: 30,
-    servings: 4,
-    estimatedCostPerServing: 3.75,
-    tags: ['dinner', 'healthy', 'spring']
-  },
-  {
-    id: '2',
-    title: 'Spring Asparagus Risotto',
-    prepTime: 15,
-    cookTime: 30,
-    totalTime: 45,
-    servings: 4,
-    estimatedCostPerServing: 2.50,
-    tags: ['dinner', 'vegetarian', 'spring']
-  },
-  {
-    id: '101',
-    title: 'Avocado Toast with Poached Eggs',
-    prepTime: 5,
-    cookTime: 10,
-    totalTime: 15,
-    servings: 2,
-    estimatedCostPerServing: 2.25,
-    tags: ['breakfast', 'quick', 'vegetarian']
-  },
-  {
-    id: '102',
-    title: 'Spring Vegetable Soup',
-    prepTime: 10,
-    cookTime: 20,
-    totalTime: 30,
-    servings: 4,
-    estimatedCostPerServing: 1.75,
-    tags: ['lunch', 'soup', 'spring', 'vegetarian']
-  },
-  {
-    id: '103',
-    title: 'Berry Breakfast Smoothie Bowl',
-    prepTime: 5,
-    cookTime: 0,
-    totalTime: 5,
-    servings: 1,
-    estimatedCostPerServing: 3.00,
-    tags: ['breakfast', 'quick', 'vegetarian']
-  },
-  {
-    id: '104',
-    title: 'Grilled Salmon with Spring Pea Puree',
-    prepTime: 10,
-    cookTime: 15,
-    totalTime: 25,
-    servings: 2,
-    estimatedCostPerServing: 5.50,
-    tags: ['dinner', 'seafood', 'spring']
-  }
-];
-
 interface Recipe {
   id: string;
   title: string;
@@ -75,7 +11,10 @@ interface Recipe {
   totalTime: number;
   servings: number;
   estimatedCostPerServing?: number;
-  tags?: string[];
+  dietaryTags?: string[];
+  difficulty?: string;
+  season?: string;
+  cuisineType?: string;
 }
 
 interface RecipeSearchSidebarProps {
@@ -95,25 +34,103 @@ export default function RecipeSearchSidebar({
 }: RecipeSearchSidebarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
-  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(mockSavedRecipes);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [allTags, setAllTags] = useState<string[]>([]);
 
-  // All unique tags from recipes
-  const allTags = Array.from(new Set(mockSavedRecipes.flatMap(recipe => recipe.tags || [])));
-
+  // Fetch recipes from API when sidebar opens
   useEffect(() => {
-    // Filter recipes based on search term and selected tag
-    const filtered = mockSavedRecipes.filter(recipe => {
+    const fetchRecipes = async () => {
+      if (!isOpen) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const response = await fetch('/api/recipes');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch recipes');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          // Transform the data to match our Recipe interface
+          const transformedRecipes = data.data.map((recipe: any) => ({
+            id: recipe.id,
+            title: recipe.title,
+            prepTime: recipe.timings?.prep || 0,
+            cookTime: recipe.timings?.cook || 0,
+            totalTime: recipe.timings?.total || 0,
+            servings: recipe.servings || 4,
+            estimatedCostPerServing: 3.50, // Default value since the API doesn't provide this
+            dietaryTags: recipe.dietaryTags ? 
+              (typeof recipe.dietaryTags === 'string' ? recipe.dietaryTags.split(',') : recipe.dietaryTags) : 
+              [],
+            difficulty: recipe.difficulty,
+            season: recipe.season,
+            cuisineType: recipe.cuisineType
+          }));
+          
+          setRecipes(transformedRecipes);
+          
+          // Extract all unique tags
+          const tags = Array.from(new Set(
+            transformedRecipes.flatMap(recipe => 
+              recipe.dietaryTags || []
+            ).filter(tag => tag && tag.trim() !== '')
+          ));
+          
+          // Add additional category tags based on recipe properties
+          const categoryTags = [
+            ...new Set([
+              ...transformedRecipes.map(r => r.difficulty || ''),
+              ...transformedRecipes.map(r => r.season || ''),
+              ...transformedRecipes.map(r => r.cuisineType || '')
+            ].filter(tag => tag && tag.trim() !== ''))
+          ];
+          
+          setAllTags([...tags, ...categoryTags]);
+          
+        } else {
+          throw new Error('Invalid response format');
+        }
+      } catch (err) {
+        console.error('Error fetching recipes:', err);
+        setError('Failed to load recipes. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchRecipes();
+  }, [isOpen]);
+
+  // Filter recipes based on search term and selected tag
+  useEffect(() => {
+    if (recipes.length === 0) {
+      setFilteredRecipes([]);
+      return;
+    }
+    
+    const filtered = recipes.filter(recipe => {
       const matchesSearch = searchTerm === '' || 
         recipe.title.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesTag = selectedTag === '' || 
-        (recipe.tags && recipe.tags.includes(selectedTag));
+        (recipe.dietaryTags && recipe.dietaryTags.includes(selectedTag)) ||
+        recipe.difficulty === selectedTag ||
+        recipe.season === selectedTag ||
+        recipe.cuisineType === selectedTag;
       
       return matchesSearch && matchesTag;
     });
     
     setFilteredRecipes(filtered);
-  }, [searchTerm, selectedTag]);
+  }, [searchTerm, selectedTag, recipes]);
 
   // Calculate the estimated cost for the total recipe
   const getEstimatedTotalCost = (recipe: Recipe) => {
@@ -152,6 +169,7 @@ export default function RecipeSearchSidebar({
               className="w-full p-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sage"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
+              disabled={isLoading}
             />
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -164,35 +182,67 @@ export default function RecipeSearchSidebar({
             </svg>
           </div>
           
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedTag('')}
-              className={`text-xs px-2 py-1 rounded-full ${
-                selectedTag === '' 
-                  ? 'bg-sage text-white' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              All
-            </button>
-            {allTags.map(tag => (
+          {!isLoading && (
+            <div className="mt-3 flex flex-wrap gap-2">
               <button
-                key={tag}
-                onClick={() => setSelectedTag(tag)}
+                onClick={() => setSelectedTag('')}
                 className={`text-xs px-2 py-1 rounded-full ${
-                  selectedTag === tag 
+                  selectedTag === '' 
                     ? 'bg-sage text-white' 
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {tag}
+                All
               </button>
-            ))}
-          </div>
+              {allTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(tag)}
+                  className={`text-xs px-2 py-1 rounded-full ${
+                    selectedTag === tag 
+                      ? 'bg-sage text-white' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         
         <div className="flex-1 overflow-y-auto p-4">
-          {filteredRecipes.length > 0 ? (
+          {isLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="animate-pulse">
+                  <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="flex justify-between mb-2">
+                    <div className="h-3 bg-gray-200 rounded w-20"></div>
+                    <div className="h-3 bg-gray-200 rounded w-24"></div>
+                  </div>
+                  <div className="flex gap-1 mb-2">
+                    <div className="h-3 bg-gray-200 rounded w-12"></div>
+                    <div className="h-3 bg-gray-200 rounded w-16"></div>
+                  </div>
+                  <div className="h-3 bg-gray-200 rounded w-24 ml-auto"></div>
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="text-center py-10 text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-3 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p>{error}</p>
+              <button 
+                onClick={() => setIsOpen(true)} // This will trigger the useEffect to refetch
+                className="mt-3 text-sage underline text-sm"
+              >
+                Try again
+              </button>
+            </div>
+          ) : filteredRecipes.length > 0 ? (
             <div className="space-y-4">
               {filteredRecipes.map(recipe => (
                 <div 
@@ -209,11 +259,21 @@ export default function RecipeSearchSidebar({
                     <span>${recipe.estimatedCostPerServing?.toFixed(2)}/serving</span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {recipe.tags?.map(tag => (
+                    {recipe.dietaryTags && recipe.dietaryTags.map(tag => (
                       <span key={tag} className="text-xs bg-white bg-opacity-50 px-1.5 py-0.5 rounded">
                         {tag}
                       </span>
                     ))}
+                    {recipe.difficulty && (
+                      <span className="text-xs bg-white bg-opacity-50 px-1.5 py-0.5 rounded">
+                        {recipe.difficulty}
+                      </span>
+                    )}
+                    {recipe.season && (
+                      <span className="text-xs bg-white bg-opacity-50 px-1.5 py-0.5 rounded">
+                        {recipe.season}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-2 text-xs text-right">
                     Est. total: ${getEstimatedTotalCost(recipe)}
