@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ShoppingList } from '@/types/shoppingList';
 import { toast } from 'react-hot-toast';
-// Use dynamic imports for client-side only libraries
-import dynamic from 'next/dynamic';
 
 interface ShoppingListShareModalProps {
   isOpen: boolean;
@@ -17,7 +15,27 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
   const [emailAddress, setEmailAddress] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pdfSupported, setPdfSupported] = useState(false);
   const printPreviewRef = useRef<HTMLDivElement>(null);
+  
+  // Check if PDF generation is supported (only in client-side environment)
+  useEffect(() => {
+    const checkPdfSupport = async () => {
+      try {
+        // Check if we can require these modules
+        if (typeof window !== 'undefined') {
+          require('html2canvas');
+          require('jspdf');
+          setPdfSupported(true);
+        }
+      } catch (err) {
+        console.warn('PDF generation not supported:', err);
+        setPdfSupported(false);
+      }
+    };
+    
+    checkPdfSupport();
+  }, []);
 
   if (!isOpen || !shoppingList) return null;
 
@@ -69,40 +87,40 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
 
   // Handle PDF generation
   const handlePDFDownload = async () => {
-    if (!printPreviewRef.current) return;
+    if (!printPreviewRef.current || typeof window === 'undefined') return;
     
     setIsLoading(true);
     
     try {
-      // Dynamically import html2canvas and jsPDF only when needed
-      const html2canvasModule = await import('html2canvas');
-      const jsPDFModule = await import('jspdf');
-      
-      const html2canvas = html2canvasModule.default;
-      const jsPDF = jsPDFModule.default;
-      
-      const canvas = await html2canvas(printPreviewRef.current, {
-        scale: 2,
-        logging: false,
-        useCORS: true,
-        allowTaint: true
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      // Calculate dimensions to fit on PDF
-      const imgWidth = 210 - 20; // A4 width - margins
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-      pdf.save(`${shoppingList.name.replace(/\s+/g, '-').toLowerCase()}.pdf`);
-      
-      toast.success('PDF downloaded successfully');
+      // Only import these libraries on the client side
+      if (typeof window !== 'undefined') {
+        // Using require instead of import for better compatibility with Next.js
+        const html2canvas = require('html2canvas').default;
+        const jsPDF = require('jspdf').default;
+        
+        const canvas = await html2canvas(printPreviewRef.current, {
+          scale: 2,
+          logging: false,
+          useCORS: true,
+          allowTaint: true
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
+        // Calculate dimensions to fit on PDF
+        const imgWidth = 210 - 20; // A4 width - margins
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+        pdf.save(`${shoppingList.name.replace(/\s+/g, '-').toLowerCase()}.pdf`);
+        
+        toast.success('PDF downloaded successfully');
+      }
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error('Failed to generate PDF');
@@ -265,11 +283,13 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
                   <button 
                     onClick={() => setShareOption('pdf')} 
                     className={`w-full text-left px-3 py-2 rounded-md flex items-center ${shareOption === 'pdf' ? 'bg-sage text-white' : 'hover:bg-gray-100'}`}
+                    disabled={!pdfSupported}
+                    title={!pdfSupported ? 'PDF generation not available' : 'Download as PDF'}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Download PDF
+                    Download PDF {!pdfSupported && '(Not Available)'}
                   </button>
                 </li>
                 <li>
@@ -399,23 +419,30 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
                   </div>
                 </div>
                 
-                <button
-                  onClick={handlePDFDownload}
-                  className="btn-primary w-full"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Generating PDF...
-                    </span>
-                  ) : (
-                    'Download PDF'
-                  )}
-                </button>
+                {pdfSupported ? (
+                  <button
+                    onClick={handlePDFDownload}
+                    className="btn-primary w-full"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating PDF...
+                      </span>
+                    ) : (
+                      'Download PDF'
+                    )}
+                  </button>
+                ) : (
+                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-md">
+                    <p className="text-sm font-medium">PDF generation is not available in this environment.</p>
+                    <p className="text-xs mt-1">Please use the print option instead.</p>
+                  </div>
+                )}
               </div>
             )}
             
