@@ -21,6 +21,12 @@
   .btn-secondary {
     @apply bg-terracotta text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-90 transition duration-200;
   }
+  .btn-danger {
+    @apply bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-opacity-90 transition duration-200;
+  }
+  .btn-sm {
+    @apply py-1 px-3 text-sm;
+  }
   .input-field {
     @apply border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sage focus:border-transparent;
   }
