@@ -5,58 +5,13 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-
-// Define types for shopping list data
-interface ShoppingListItem {
-  id: string;
-  name: string;
-  quantity: string;
-  unit?: string | null;
-  category: string;
-  checked: boolean;
-  orderPosition?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface ShoppingList {
-  id: string;
-  name: string;
-  userId: string;
-  mealPlanId?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  items: ShoppingListItem[];
-  mealPlan?: {
-    id: string;
-    name: string;
-    startDate: string;
-    endDate: string;
-  } | null;
-  itemCounts?: {
-    total: number;
-    checked: number;
-    unchecked: number;
-  };
-}
-
-interface PaginatedResponse {
-  lists: ShoppingList[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    itemsPerPage: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-  };
-}
-
-interface ApiError {
-  error: string;
-  message?: string;
-  details?: any;
-}
+import { ShoppingList, ShoppingListItem } from '@/types/shoppingList';
+import ShoppingListShareModal from '@/app/components/ShoppingListShareModal';
+import { useNetwork } from '@/app/components/NetworkStatusProvider';
+import { handleError } from '@/lib/utils/errorHandling';
+import * as shoppingListService from '@/lib/services/shoppingListService';
+import LoadingSkeleton from '@/app/components/ui/LoadingSkeleton';
+import ErrorDisplay from '@/app/components/ui/ErrorDisplay';
 
 interface Suggestion {
   name: string;
@@ -66,6 +21,7 @@ interface Suggestion {
 export default function ShoppingListPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { online } = useNetwork();
   
   // State for shopping lists
   const [lists, setLists] = useState<ShoppingList[]>([]);
@@ -88,6 +44,9 @@ export default function ShoppingListPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
+  // State for share modal
+  const [showShareModal, setShowShareModal] = useState(false);
+  
   // Authentication check
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -97,39 +56,36 @@ export default function ShoppingListPage() {
   }, [status, router]);
   
   // Fetch shopping lists
-  const fetchShoppingLists = useCallback(async () => {
+  const fetchShoppingLists = useCallback(async (options?: { forceFresh?: boolean }) => {
     if (status !== 'authenticated') return;
     
     setLoadingLists(true);
     setError(null);
     
     try {
-      const response = await fetch('/api/shopping-lists');
+      const lists = await shoppingListService.fetchShoppingLists({
+        forceFresh: options?.forceFresh || false,
+        showToast: false
+      });
       
-      if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to fetch shopping lists');
-      }
+      setLists(lists);
       
-      const data: PaginatedResponse = await response.json();
-      setLists(data.lists);
-      
-          // Check if there's a listId in the URL
+      // Check if there's a listId in the URL
       const url = new URL(window.location.href);
       const listIdParam = url.searchParams.get('listId');
       
-      if (listIdParam && data.lists.some(list => list.id === listIdParam)) {
+      if (listIdParam && lists.some(list => list.id === listIdParam)) {
         // If the listId from URL exists in our lists, select it
         setSelectedListId(listIdParam);
-      } else if (data.lists.length > 0 && !selectedListId) {
+      } else if (lists.length > 0 && !selectedListId) {
         // Otherwise select the first list
-        setSelectedListId(data.lists[0].id);
+        setSelectedListId(lists[0].id);
       }
       
     } catch (err) {
       console.error('Error fetching shopping lists:', err);
       setError(err instanceof Error ? err.message : 'Failed to load shopping lists');
-      toast.error('Failed to load shopping lists');
+      handleError(err, 'Failed to load shopping lists');
     } finally {
       setLoadingLists(false);
       setLoading(false);
@@ -137,40 +93,38 @@ export default function ShoppingListPage() {
   }, [status, selectedListId]);
   
   // Fetch a single shopping list
-  const fetchShoppingList = useCallback(async (listId: string) => {
+  const fetchShoppingList = useCallback(async (listId: string, options?: { forceFresh?: boolean }) => {
     if (!listId || status !== 'authenticated') return;
     
     setLoadingItems(true);
     setError(null);
     
     try {
-      const response = await fetch(`/api/shopping-lists/${listId}`);
-      
-      if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to fetch shopping list');
-      }
-      
-      const data: ShoppingList = await response.json();
-      
-      // Update the list in our state
-      setLists(prevLists => {
-        const updatedLists = [...prevLists];
-        const index = updatedLists.findIndex(list => list.id === listId);
-        
-        if (index !== -1) {
-          updatedLists[index] = data;
-        } else {
-          updatedLists.push(data);
-        }
-        
-        return updatedLists;
+      const list = await shoppingListService.fetchShoppingList(listId, {
+        forceFresh: options?.forceFresh || false,
+        showToast: false
       });
+      
+      if (list) {
+        // Update the list in our state
+        setLists(prevLists => {
+          const updatedLists = [...prevLists];
+          const index = updatedLists.findIndex(l => l.id === listId);
+          
+          if (index !== -1) {
+            updatedLists[index] = list;
+          } else {
+            updatedLists.push(list);
+          }
+          
+          return updatedLists;
+        });
+      }
       
     } catch (err) {
       console.error('Error fetching shopping list:', err);
       setError(err instanceof Error ? err.message : 'Failed to load shopping list');
-      toast.error('Failed to load shopping list details');
+      handleError(err, 'Failed to load shopping list details');
     } finally {
       setLoadingItems(false);
     }
@@ -235,7 +189,10 @@ export default function ShoppingListPage() {
   // Get currently selected list
   const selectedList = lists.find(list => list.id === selectedListId) || null;
   
-  // Group items by category
+  // State for expanded/collapsed category sections
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  
+  // Group items by category with improved ordering
   const groupedItems = selectedList ? 
     Object.entries(
       selectedList.items.reduce((acc, item) => {
@@ -245,7 +202,58 @@ export default function ShoppingListPage() {
         acc[item.category].push(item);
         return acc;
       }, {} as Record<string, ShoppingListItem[]>)
-    ).sort() : [];
+    ).sort((a, b) => {
+      // Custom category ordering
+      const categoryOrder = [
+        'produce', 
+        'dairy', 
+        'meat', 
+        'seafood', 
+        'grains', 
+        'Fresh Herbs',
+        'Herbs & Spices', 
+        'Spices',
+        'Baking',
+        'Canned Goods', 
+        'Oils & Vinegars',
+        'Condiments',
+        'pantry', 
+        'other'
+      ];
+      
+      const indexA = categoryOrder.indexOf(a[0]);
+      const indexB = categoryOrder.indexOf(b[0]);
+      
+      if (indexA === -1 && indexB === -1) {
+        // If neither category is in our ordering, sort alphabetically
+        return a[0].localeCompare(b[0]);
+      }
+      
+      if (indexA === -1) return 1; // Unknown categories go to the end
+      if (indexB === -1) return -1;
+      
+      return indexA - indexB;
+    }) : [];
+    
+  // Initialize expanded state for all categories
+  useEffect(() => {
+    if (selectedList) {
+      const categories = groupedItems.map(([category]) => category);
+      const initialExpandedState = categories.reduce((acc, category) => {
+        acc[category] = true; // Start with all categories expanded
+        return acc;
+      }, {} as Record<string, boolean>);
+      setExpandedCategories(initialExpandedState);
+    }
+  }, [selectedList?.id]); // Only when the selected list changes
+  
+  // Toggle category expansion
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
   
   // Apply suggestion to form
   const applySuggestion = (suggestion: Suggestion) => {
@@ -282,25 +290,12 @@ export default function ShoppingListPage() {
     );
     
     try {
-      // Update the item on the server
-      const response = await fetch(`/api/shopping-lists/${selectedListId}/items`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: [{ id: itemId, checked: !item.checked }]
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to update item');
-      }
-      
+      await shoppingListService.updateShoppingListItems(
+        selectedListId,
+        [{ id: itemId, checked: !item.checked }]
+      );
     } catch (err) {
-      console.error('Error updating item:', err);
-      toast.error('Failed to update item');
+      handleError(err, 'Failed to update item');
       
       // Revert the optimistic update
       setLists(prevLists => 
@@ -363,32 +358,18 @@ export default function ShoppingListPage() {
     );
     
     try {
-      // Send the operation to the server
-      const response = await fetch(`/api/shopping-lists/${selectedListId}/items`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation,
-          itemIds
-        }),
-      });
+      await shoppingListService.bulkOperationOnItems(
+        selectedListId, 
+        operation, 
+        itemIds
+      );
       
-      if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(errorData.message || errorData.error || `Failed to ${operation} items`);
-      }
-      
-      const data = await response.json();
-      toast.success(data.message || `Successfully ${operation === 'check' ? 'checked' : operation === 'uncheck' ? 'unchecked' : 'deleted'} items`);
-      
+      toast.success(`Successfully ${operation === 'check' ? 'checked' : operation === 'uncheck' ? 'unchecked' : 'deleted'} items`);
     } catch (err) {
-      console.error(`Error performing ${operation} operation:`, err);
-      toast.error(`Failed to ${operation} items`);
+      handleError(err, `Failed to ${operation} items`);
       
       // Revert the optimistic update by refreshing the list
-      fetchShoppingList(selectedListId);
+      fetchShoppingList(selectedListId, { forceFresh: online });
     }
   };
   
@@ -410,24 +391,13 @@ export default function ShoppingListPage() {
     );
     
     try {
-      // Delete the item on the server
-      const response = await fetch(`/api/shopping-lists/${selectedListId}/items?itemId=${itemId}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to delete item');
-      }
-      
+      await shoppingListService.deleteShoppingListItem(selectedListId, itemId);
       toast.success('Item deleted successfully');
-      
     } catch (err) {
-      console.error('Error deleting item:', err);
-      toast.error('Failed to delete item');
+      handleError(err, 'Failed to delete item');
       
       // Revert the optimistic update by refreshing the list
-      fetchShoppingList(selectedListId);
+      fetchShoppingList(selectedListId, { forceFresh: online });
     }
   };
   
@@ -448,46 +418,25 @@ export default function ShoppingListPage() {
     };
     
     try {
-      // Add the item to the server
-      const response = await fetch(`/api/shopping-lists/${selectedListId}/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newItem),
-      });
-      
-      if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to add item');
-      }
-      
-      const data = await response.json();
-      
-      // Update state with the newly created item
-      setLists(prevLists => 
-        prevLists.map(list => {
-          if (list.id === selectedListId) {
-            return {
-              ...list,
-              items: [...list.items, data.item]
-            };
-          }
-          return list;
-        })
+      const items = await shoppingListService.addItemsToShoppingList(
+        selectedListId,
+        [newItem]
       );
       
-      // Reset form
-      setNewItemName('');
-      setNewItemQuantity('');
-      setNewItemUnit('');
-      setNewItemCategory('other');
-      
-      toast.success('Item added successfully');
-      
+      if (items && items.length > 0) {
+        // Reset form
+        setNewItemName('');
+        setNewItemQuantity('');
+        setNewItemUnit('');
+        setNewItemCategory('other');
+        
+        toast.success('Item added successfully');
+        
+        // Refresh the list to get the most up-to-date data
+        fetchShoppingList(selectedListId, { forceFresh: online });
+      }
     } catch (err) {
-      console.error('Error adding item:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to add item');
+      handleError(err, 'Failed to add item');
     } finally {
       setSubmitLoading(false);
     }
@@ -496,32 +445,20 @@ export default function ShoppingListPage() {
   // Handle creating a new shopping list
   const handleCreateShoppingList = async (mealPlanId: string) => {
     try {
-      const response = await fetch('/api/shopping-lists', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mealPlanId,
-          name: `Shopping List for Meal Plan`
-        }),
+      const newList = await shoppingListService.createShoppingList({
+        name: `Shopping List for Meal Plan`,
+        mealPlanId
       });
       
-      if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to create shopping list');
+      if (newList) {
+        toast.success('Shopping list created successfully');
+        
+        // Refresh lists and select the new list
+        await fetchShoppingLists({ forceFresh: true });
+        setSelectedListId(newList.id);
       }
-      
-      const data = await response.json();
-      toast.success('Shopping list created successfully');
-      
-      // Refresh lists and select the new list
-      await fetchShoppingLists();
-      setSelectedListId(data.shoppingList.id);
-      
     } catch (err) {
-      console.error('Error creating shopping list:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to create shopping list');
+      handleError(err, 'Failed to create shopping list');
     }
   };
   
@@ -566,11 +503,7 @@ export default function ShoppingListPage() {
   
   // Render loading state
   if (status === 'loading' || (loading && loadingLists)) {
-    return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sage"></div>
-      </div>
-    );
+    return <LoadingSkeleton type="shopping-list" />;
   }
   
   // Redirect to login if not authenticated
@@ -581,16 +514,11 @@ export default function ShoppingListPage() {
   // Render error state
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto py-8">
-        <h1 className="text-3xl font-serif font-bold text-navy mb-8">Shopping Lists</h1>
-        
-        <div className="bg-white p-8 rounded-lg shadow-md text-center">
-          <p className="text-lg mb-6 text-red-600">{error}</p>
-          <button onClick={() => fetchShoppingLists()} className="btn-primary">
-            Try Again
-          </button>
-        </div>
-      </div>
+      <ErrorDisplay
+        error={error}
+        onRetry={() => fetchShoppingLists({ forceFresh: true })}
+        title="Shopping Lists"
+      />
     );
   }
   
@@ -657,9 +585,9 @@ export default function ShoppingListPage() {
           </Link>
           <button 
             className="btn-primary"
-            onClick={handleExportList}
+            onClick={() => setShowShareModal(true)}
           >
-            Export List
+            Share & Export
           </button>
         </div>
       </div>
@@ -810,11 +738,26 @@ export default function ShoppingListPage() {
           <div className="divide-y divide-gray-200">
             {groupedItems.map(([category, items]) => (
               <div key={category} className="p-6">
-                <h3 className="text-lg font-medium text-navy capitalize mb-4">
-                  {category}
-                </h3>
-                <ul className="space-y-3">
-                  {items.map(item => (
+                <div className="flex items-center justify-between cursor-pointer mb-2" onClick={() => toggleCategory(category)}>
+                  <h3 className="text-lg font-medium text-navy capitalize">
+                    {category}
+                    <span className="ml-2 text-sm text-gray-600">({items.length} items)</span>
+                  </h3>
+                  <div className="text-gray-500">
+                    {expandedCategories[category] ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                {expandedCategories[category] && (
+                  <ul className="space-y-3 mt-2">
+                    {items.map(item => (
                     <li 
                       key={item.id} 
                       className="flex items-start gap-3"
@@ -828,10 +771,38 @@ export default function ShoppingListPage() {
                         />
                       </div>
                       <div className={`flex-grow ${item.checked ? 'line-through text-gray-400' : ''}`}>
-                        <div className="font-medium">{item.name}</div>
+                        <div className="font-medium relative group">
+                          {item.name}
+                          {item.originalIngredients && item.originalIngredients.length > 1 && (
+                            <div className="hidden group-hover:block absolute z-10 bg-white p-3 rounded-lg shadow-lg w-60 border border-gray-200 left-0 top-6">
+                              <div className="text-xs font-semibold text-gray-500 mb-1">Consolidated from:</div>
+                              <ul className="text-xs text-gray-600">
+                                {item.originalIngredients.map((orig, idx) => (
+                                  <li key={idx} className="mb-1 pb-1 border-b border-gray-100 last:border-0">
+                                    {orig.name}: {orig.quantity} {orig.unit}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {item.originalIngredients && item.originalIngredients.length > 1 && (
+                            <span className="ml-2 text-xs text-blue-500 align-text-top cursor-help">
+                              (combined)
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-600">
                           {item.quantity} {item.unit}
                         </div>
+                        {item.name.includes('bulk') && (
+                          <div className="text-xs mt-1 text-green-600 font-medium bg-green-50 rounded-full px-2 py-0.5 inline-block">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1z" clipRule="evenodd" />
+                              <path d="M12 2a2 2 0 12 0v8a2 2 0 11-2 0V4z" />
+                            </svg>
+                            Bulk savings
+                          </div>
+                        )}
                       </div>
                       <button 
                         className="text-red-500 hover:text-red-700"
@@ -853,7 +824,8 @@ export default function ShoppingListPage() {
                       </button>
                     </li>
                   ))}
-                </ul>
+                  </ul>
+                )}
               </div>
             ))}
             
@@ -865,6 +837,13 @@ export default function ShoppingListPage() {
           </div>
         )}
       </div>
+      
+      {/* Share Modal */}
+      <ShoppingListShareModal 
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        shoppingList={selectedList}
+      />
     </div>
   );
 }
