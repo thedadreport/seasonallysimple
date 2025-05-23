@@ -94,6 +94,9 @@ export default function RecipeGenerator() {
 
     setIsSaving(true);
     setSaveStatus('idle');
+    
+    // Log the original generated recipe for debugging
+    console.log('Generated recipe data:', generatedRecipe);
 
     try {
       // Format the recipe data according to the API schema
@@ -101,12 +104,12 @@ export default function RecipeGenerator() {
         title: generatedRecipe.title,
         description: generatedRecipe.description,
         timings: {
-          prep: generatedRecipe.timings.prep,
-          cook: generatedRecipe.timings.cook,
-          total: generatedRecipe.timings.total,
+          prep: parseInt(generatedRecipe.timings.prep, 10),
+          cook: parseInt(generatedRecipe.timings.cook, 10),
+          total: parseInt(generatedRecipe.timings.total, 10),
         },
         ingredients: generatedRecipe.ingredients.map((ing: any) => ({
-          amount: ing.amount,
+          amount: ing.amount.toString(),
           unit: ing.unit || null,
           name: ing.name,
         })),
@@ -115,12 +118,12 @@ export default function RecipeGenerator() {
           text: ins.text,
         })),
         nutritionInfo: {
-          calories: generatedRecipe.nutritionInfo.calories,
-          protein: generatedRecipe.nutritionInfo.protein,
-          carbs: generatedRecipe.nutritionInfo.carbs,
-          fat: generatedRecipe.nutritionInfo.fat,
-          fiber: generatedRecipe.nutritionInfo.fiber || null,
-          sodium: generatedRecipe.nutritionInfo.sodium || null,
+          calories: parseInt(generatedRecipe.nutritionInfo.calories, 10),
+          protein: parseInt(generatedRecipe.nutritionInfo.protein, 10),
+          carbs: parseInt(generatedRecipe.nutritionInfo.carbs, 10),
+          fat: parseInt(generatedRecipe.nutritionInfo.fat, 10),
+          fiber: generatedRecipe.nutritionInfo.fiber ? parseInt(generatedRecipe.nutritionInfo.fiber, 10) : null,
+          sodium: generatedRecipe.nutritionInfo.sodium ? parseInt(generatedRecipe.nutritionInfo.sodium, 10) : null,
         },
         difficulty: generatedRecipe.skillLevel || 'BEGINNER',
         season: generatedRecipe.season || 'ALL',
@@ -128,11 +131,14 @@ export default function RecipeGenerator() {
         dietaryTags: Array.isArray(generatedRecipe.dietaryTags) 
           ? generatedRecipe.dietaryTags.join(',') 
           : (generatedRecipe.dietaryTags || ''),
-        servings: generatedRecipe.servings || 4,
+        servings: parseInt(generatedRecipe.servings || '4', 10),
         tips: generatedRecipe.tips || null,
         imageUrl: generatedRecipe.imageUrl || null,
         isAIGenerated: true,
       };
+      
+      // Log the formatted recipe data for debugging
+      console.log('Formatted recipe data:', recipeData);
 
       // Call the API to save the recipe
       const response = await fetch('/api/recipes', {
@@ -144,7 +150,13 @@ export default function RecipeGenerator() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error?.message || 'Failed to save recipe');
+        console.error('API error response:', result);
+        if (result.error?.code === 'VALIDATION_ERROR') {
+          console.error('Validation errors:', result.error.details);
+          throw new Error('Invalid recipe data: ' + JSON.stringify(result.error.details));
+        } else {
+          throw new Error(result.error?.message || 'Failed to save recipe');
+        }
       }
 
       setSaveStatus('success');
@@ -154,9 +166,14 @@ export default function RecipeGenerator() {
         router.push(`/recipes/${result.data.id}`);
       }, 1500);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving recipe:', error);
+      // Set a more specific error message if available
       setSaveStatus('error');
+      // Display detailed error in UI
+      if (error.message && error.message.includes('Invalid recipe data')) {
+        alert('Failed to save recipe due to validation errors. Check console for details.');
+      }
     } finally {
       setIsSaving(false);
     }
