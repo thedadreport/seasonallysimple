@@ -1,8 +1,10 @@
+'use client';
+
 import { useState, useRef } from 'react';
 import { ShoppingList } from '@/types/shoppingList';
 import { toast } from 'react-hot-toast';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+// Use dynamic imports for client-side only libraries
+import dynamic from 'next/dynamic';
 
 interface ShoppingListShareModalProps {
   isOpen: boolean;
@@ -72,6 +74,13 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
     setIsLoading(true);
     
     try {
+      // Dynamically import html2canvas and jsPDF only when needed
+      const html2canvasModule = await import('html2canvas');
+      const jsPDFModule = await import('jspdf');
+      
+      const html2canvas = html2canvasModule.default;
+      const jsPDF = jsPDFModule.default;
+      
       const canvas = await html2canvas(printPreviewRef.current, {
         scale: 2,
         logging: false,
