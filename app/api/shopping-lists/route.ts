@@ -130,7 +130,22 @@ export const POST = withAuth(async (request: NextRequest) => {
     // Pantry integration removed
     
     // Create shopping list items from the consolidated ingredients if there are any
-    let shoppingListItems = [];
+    // Define the type based on Prisma's ShoppingListItem model
+    let shoppingListItems: Array<{
+      id: string;
+      name: string;
+      quantity: string;
+      unit: string | null;
+      category: string;
+      checked: boolean;
+      bulkBuying: boolean;
+      orderPosition: number;
+      excludedFromPantry: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      shoppingListId: string;
+      originalIngredients?: any;
+    } | null> = [];
     
     if (consolidatedIngredients.length > 0) {
       shoppingListItems = await Promise.all(
