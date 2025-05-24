@@ -140,7 +140,7 @@ export async function createShoppingList(
   if (!navigator.onLine) {
     const tempList: ShoppingList = {
       id: tempId,
-      name: data.name,
+      name: data.name || `Shopping List ${new Date().toLocaleDateString()}`,
       userId: 'current-user', // Will be replaced when synced
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
