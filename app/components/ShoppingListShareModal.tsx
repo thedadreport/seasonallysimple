@@ -69,7 +69,16 @@ export default function ShoppingListShareModal({ isOpen, onClose, shoppingList }
 
   // Handle print action
   const handlePrint = () => {
+    // Add a temporary class to the body to focus print on just this modal
+    document.body.classList.add('printing-shopping-list');
+    
+    // Print the document
     window.print();
+    
+    // Remove the class after printing
+    setTimeout(() => {
+      document.body.classList.remove('printing-shopping-list');
+    }, 500);
   };
 
   // PDF generation is disabled for now

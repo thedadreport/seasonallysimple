@@ -179,4 +179,33 @@
     margin: 0 !important;
     padding: 0 !important;
   }
+  
+  /* Focused printing for the shopping list modal */
+  body.printing-shopping-list > *:not(.fixed) {
+    display: none !important;
+  }
+  
+  body.printing-shopping-list .fixed {
+    position: static !important;
+    overflow: visible !important;
+    background: white !important;
+    z-index: 9999 !important;
+  }
+  
+  body.printing-shopping-list .fixed .bg-black {
+    background: white !important;
+  }
+  
+  body.printing-shopping-list .fixed button,
+  body.printing-shopping-list .fixed .btn-primary,
+  body.printing-shopping-list .fixed .btn-secondary {
+    display: none !important;
+  }
+  
+  body.printing-shopping-list .print-preview {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 1cm !important;
+  }
 }
