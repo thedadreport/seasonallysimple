@@ -49,7 +49,15 @@ export default function PrintShoppingListPage({ params }: PrintPageProps) {
         // Process originalIngredients JSON if needed
         const processedData = {
           ...data,
-          items: data.items ? data.items.map(item => {
+          items: data.items ? data.items.map((item: {
+            id: string;
+            name: string;
+            quantity: string;
+            unit?: string | null;
+            category: string;
+            checked: boolean;
+            originalIngredients?: string | any;
+          }) => {
             if (item.originalIngredients && typeof item.originalIngredients === 'string') {
               try {
                 return {
