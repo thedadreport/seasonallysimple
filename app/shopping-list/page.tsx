@@ -522,6 +522,25 @@ export default function ShoppingListPage() {
     );
   }
   
+  // Handle creating an empty shopping list
+  const handleCreateEmptyShoppingList = async () => {
+    try {
+      const newList = await shoppingListService.createShoppingList({
+        name: `Shopping List ${new Date().toLocaleDateString()}`
+      });
+      
+      if (newList) {
+        toast.success('Shopping list created successfully');
+        
+        // Refresh lists and select the new list
+        await fetchShoppingLists({ forceFresh: true });
+        setSelectedListId(newList.id);
+      }
+    } catch (err) {
+      handleError(err, 'Failed to create shopping list');
+    }
+  };
+
   // Render empty state
   if (lists.length === 0) {
     return (
@@ -530,9 +549,17 @@ export default function ShoppingListPage() {
         
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-lg mb-6">You don't have any shopping lists yet.</p>
-          <Link href="/meal-plan" className="btn-primary">
-            Create a Meal Plan First
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button 
+              onClick={handleCreateEmptyShoppingList}
+              className="btn-primary"
+            >
+              Create Empty Shopping List
+            </button>
+            <Link href="/meal-plan" className="btn-secondary">
+              Create from Meal Plan
+            </Link>
+          </div>
         </div>
       </div>
     );

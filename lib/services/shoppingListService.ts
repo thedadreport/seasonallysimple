@@ -128,7 +128,7 @@ export async function fetchShoppingList(
  * Create a new shopping list with offline support
  */
 export async function createShoppingList(
-  data: { name: string; mealPlanId?: string; includePantryItems?: boolean },
+  data: { name?: string; mealPlanId?: string; includePantryItems?: boolean },
   options: { 
     showToast?: boolean;
   } = {}

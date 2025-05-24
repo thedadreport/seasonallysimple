@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
 
 // Zod schema for shopping list creation
 const shoppingListCreateSchema = z.object({
-  mealPlanId: z.string().uuid({ message: "Valid mealPlanId is required" }),
+  mealPlanId: z.string().uuid({ message: "Valid mealPlanId is required" }).optional(),
   name: z.string().optional(),
 });
 
@@ -51,34 +51,70 @@ export const POST = withAuth(async (request: NextRequest) => {
     
     const { mealPlanId, name } = validationResult.data;
     
-    // Verify the meal plan exists and belongs to the user
-    const mealPlan = await prisma.mealPlan.findFirst({
-      where: {
-        id: mealPlanId,
-        userId: session.user.id,
-      },
-      include: {
-        items: {
-          include: {
-            recipe: true,
+    let mealPlan = null;
+    let shoppingListName = name || "My Shopping List";
+    let rawIngredients: IngredientItem[] = [];
+    
+    // If a meal plan ID is provided, fetch and validate it
+    if (mealPlanId) {
+      mealPlan = await prisma.mealPlan.findFirst({
+        where: {
+          id: mealPlanId,
+          userId: session.user.id,
+        },
+        include: {
+          items: {
+            include: {
+              recipe: true,
+            },
           },
         },
-      },
-    });
-    
-    if (!mealPlan) {
-      return NextResponse.json(
-        { error: 'Meal plan not found or you do not have access to it' },
-        { status: 404 }
-      );
+      });
+      
+      if (!mealPlan) {
+        return NextResponse.json(
+          { error: 'Meal plan not found or you do not have access to it' },
+          { status: 404 }
+        );
+      }
+      
+      shoppingListName = name || `Shopping List for ${mealPlan.name}`;
+      
+      // Extract ingredients from the meal plan
+      
+      // Process each recipe in the meal plan
+      for (const mealPlanItem of mealPlan.items) {
+        const recipe = mealPlanItem.recipe;
+        
+        try {
+          // Find the associated ingredients for this recipe
+          const recipeIngredients = await prisma.ingredient.findMany({
+            where: { recipeId: recipe.id }
+          });
+          
+          // If we have structured ingredients in the database, use those
+          if (recipeIngredients.length > 0) {
+            for (const ingredient of recipeIngredients) {
+              rawIngredients.push({
+                name: ingredient.name,
+                quantity: ingredient.amount,
+                unit: ingredient.unit || null
+              });
+            }
+          } 
+        } catch (error) {
+          console.error(`Error processing recipe ${recipe.id}:`, error);
+          // Continue with the next recipe rather than failing the entire request
+        }
+      }
     }
     
     // Create a new shopping list
     const shoppingList = await prisma.shoppingList.create({
       data: {
-        name: name || `Shopping List for ${mealPlan.name}`,
+        name: shoppingListName,
         userId: session.user.id,
-        mealPlanId: mealPlanId,
+        mealPlanId: mealPlanId || null,
       },
     }).catch((error) => {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -88,66 +124,41 @@ export const POST = withAuth(async (request: NextRequest) => {
       throw error;
     });
     
-    // Extract ingredients from the meal plan
-    const rawIngredients: IngredientItem[] = [];
-    
-    // Process each recipe in the meal plan
-    for (const mealPlanItem of mealPlan.items) {
-      const recipe = mealPlanItem.recipe;
-      
-      try {
-        // Find the associated ingredients for this recipe
-        const recipeIngredients = await prisma.ingredient.findMany({
-          where: { recipeId: recipe.id }
-        });
-        
-        // If we have structured ingredients in the database, use those
-        if (recipeIngredients.length > 0) {
-          for (const ingredient of recipeIngredients) {
-            rawIngredients.push({
-              name: ingredient.name,
-              quantity: ingredient.amount,
-              unit: ingredient.unit || null
-            });
-          }
-        } 
-      } catch (error) {
-        console.error(`Error processing recipe ${recipe.id}:`, error);
-        // Continue with the next recipe rather than failing the entire request
-      }
-    }
-    
     // Use the smart ingredient consolidation system
     const consolidatedIngredients = consolidateIngredients(rawIngredients);
     
     // Pantry integration removed
     
-    // Create shopping list items from the consolidated ingredients
-    const shoppingListItems = await Promise.all(
-      consolidatedIngredients.map(async (ingredient, index) => {
-        
-        return prisma.shoppingListItem.create({
-          data: {
-            shoppingListId: shoppingList.id,
-            name: ingredient.bulkBuying 
-              ? `${ingredient.name} (Consider buying in bulk)`
-              : ingredient.name,
-            quantity: ingredient.quantity,
-            unit: ingredient.unit || null,
-            category: ingredient.category || 'other',
-            bulkBuying: ingredient.bulkBuying || false,
-            orderPosition: index,
-            // Save original ingredients data for tooltip display
-            originalIngredients: ingredient.originalIngredients 
-              ? Prisma.JsonNull 
-              : undefined
-          },
-        }).catch((error) => {
-          console.error(`Error creating shopping list item for ${ingredient.name}:`, error);
-          return null; // Return null for failed items so we can filter them out
-        });
-      })
-    ).then(items => items.filter(item => item !== null)); // Filter out any null items
+    // Create shopping list items from the consolidated ingredients if there are any
+    let shoppingListItems = [];
+    
+    if (consolidatedIngredients.length > 0) {
+      shoppingListItems = await Promise.all(
+        consolidatedIngredients.map(async (ingredient, index) => {
+          
+          return prisma.shoppingListItem.create({
+            data: {
+              shoppingListId: shoppingList.id,
+              name: ingredient.bulkBuying 
+                ? `${ingredient.name} (Consider buying in bulk)`
+                : ingredient.name,
+              quantity: ingredient.quantity,
+              unit: ingredient.unit || null,
+              category: ingredient.category || 'other',
+              bulkBuying: ingredient.bulkBuying || false,
+              orderPosition: index,
+              // Save original ingredients data for tooltip display
+              originalIngredients: ingredient.originalIngredients 
+                ? Prisma.JsonNull 
+                : undefined
+            },
+          }).catch((error) => {
+            console.error(`Error creating shopping list item for ${ingredient.name}:`, error);
+            return null; // Return null for failed items so we can filter them out
+          });
+        })
+      ).then(items => items.filter(item => item !== null)); // Filter out any null items
+    }
     
     return NextResponse.json({
       message: 'Shopping list created successfully',
