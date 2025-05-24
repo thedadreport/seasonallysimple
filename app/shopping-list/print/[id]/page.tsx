@@ -62,7 +62,7 @@ export default function PrintShoppingListPage({ params }: PrintPageProps) {
         // Auto-print after loading
         setTimeout(() => {
           window.print();
-        }, 1000);
+        }, 1500);
         
       } catch (err) {
         console.error('Error fetching shopping list:', err);

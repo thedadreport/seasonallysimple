@@ -606,7 +606,7 @@ export default function ShoppingListPage() {
           </p>
         </div>
         
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-2 md:gap-4">
           <Link href="/meal-plan" className="btn-secondary">
             Back to Meal Plan
           </Link>
@@ -616,24 +616,62 @@ export default function ShoppingListPage() {
           >
             Share & Export
           </button>
+          {selectedList && (
+            <Link 
+              href={`/shopping-list/print/${selectedList.id}`}
+              target="_blank"
+              className="btn-secondary flex items-center justify-center" 
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2z" />
+              </svg>
+              Print
+            </Link>
+          )}
         </div>
       </div>
       
-      {/* Lists selector (if more than one) */}
-      {lists.length > 1 && (
-        <div className="mb-8">
-          <label className="block text-gray-700 mb-2 font-medium">Select a shopping list:</label>
-          <select 
-            value={selectedListId || ''} 
-            onChange={(e) => setSelectedListId(e.target.value)}
-            className="w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-sage focus:border-sage"
+      {/* Lists selector and new list button */}
+      {lists.length > 1 ? (
+        <div className="mb-8 flex flex-col md:flex-row gap-4">
+          <div className="flex-grow">
+            <label className="block text-gray-700 mb-2 font-medium">Select a shopping list:</label>
+            <select 
+              value={selectedListId || ''} 
+              onChange={(e) => setSelectedListId(e.target.value)}
+              className="w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-sage focus:border-sage"
+            >
+              {lists.map(list => (
+                <option key={list.id} value={list.id}>
+                  {list.name} {list.mealPlan ? `(${new Date(list.mealPlan.startDate).toLocaleDateString()})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex items-end">
+            <button 
+              onClick={handleCreateEmptyShoppingList}
+              className="btn-secondary h-[42px] whitespace-nowrap flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New List
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-8 flex justify-end">
+          <button 
+            onClick={handleCreateEmptyShoppingList}
+            className="btn-secondary flex items-center"
           >
-            {lists.map(list => (
-              <option key={list.id} value={list.id}>
-                {list.name} {list.mealPlan ? `(${new Date(list.mealPlan.startDate).toLocaleDateString()})` : ''}
-              </option>
-            ))}
-          </select>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create New List
+          </button>
         </div>
       )}
       
