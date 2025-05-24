@@ -30,13 +30,17 @@ export default function Navigation() {
 
   // Close menus when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
-      setIsUserMenuOpen(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      // Create a ref on the fly to check if the click was outside the user menu
+      const userMenuRef = document.querySelector('.user-menu-container');
+      if (userMenuRef && !userMenuRef.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
     };
 
-    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -91,13 +95,16 @@ export default function Navigation() {
           {/* User Menu & Mobile Menu Toggle */}
           <div className="flex items-center gap-4">
             {isLoggedIn ? (
-              <div className="relative">
+              <div className="relative user-menu-container">
                 <button
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     toggleUserMenu();
                   }}
                   className="flex items-center focus:outline-none"
+                  aria-expanded={isUserMenuOpen}
+                  aria-label="User menu"
                 >
                   {session.user.image ? (
                     <img 
@@ -116,7 +123,10 @@ export default function Navigation() {
                 {isUserMenuOpen && (
                   <div 
                     className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
                   >
                     <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
                       Signed in as<br />
