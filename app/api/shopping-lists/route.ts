@@ -16,6 +16,14 @@ const prisma = new PrismaClient();
 const shoppingListCreateSchema = z.object({
   mealPlanId: z.string().uuid({ message: "Valid mealPlanId is required" }).optional(),
   name: z.string().optional(),
+  ingredients: z.array(
+    z.object({
+      name: z.string(),
+      quantity: z.string(),
+      unit: z.string().nullable().optional(),
+      category: z.string().optional(),
+    })
+  ).optional(),
 });
 
 // Format the ingredient quantity and unit for display
@@ -49,11 +57,22 @@ export const POST = withAuth(async (request: NextRequest) => {
       );
     }
     
-    const { mealPlanId, name } = validationResult.data;
+    const { mealPlanId, name, ingredients: providedIngredients } = validationResult.data;
     
     let mealPlan = null;
     let shoppingListName = name || "My Shopping List";
     let rawIngredients: IngredientItem[] = [];
+    
+    // If ingredients were provided directly, use those
+    if (providedIngredients && providedIngredients.length > 0) {
+      console.log("Using provided ingredients:", providedIngredients);
+      rawIngredients = providedIngredients.map(ingredient => ({
+        name: ingredient.name,
+        quantity: ingredient.quantity,
+        unit: ingredient.unit || null,
+        category: ingredient.category || 'other'
+      }));
+    }
     
     // If a meal plan ID is provided, fetch and validate it
     if (mealPlanId) {

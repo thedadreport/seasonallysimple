@@ -170,6 +170,7 @@ export default function ShoppingListModal({
     }
     
     setLoading(true);
+    console.log("Creating shopping list with ingredients:", ingredients);
     
     try {
       // First create the shopping list
@@ -180,7 +181,14 @@ export default function ShoppingListModal({
         },
         body: JSON.stringify({
           mealPlanId,
-          name: listName
+          name: listName,
+          // Include the ingredients directly in the shopping list creation
+          ingredients: ingredients.map(ingredient => ({
+            name: ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            category: ingredient.category
+          }))
         }),
       });
       
@@ -192,25 +200,32 @@ export default function ShoppingListModal({
       const createData = await createResponse.json();
       const shoppingListId = createData.shoppingList.id;
       
-      // Then add the ingredients as items
-      const addItemsResponse = await fetch(`/api/shopping-lists/${shoppingListId}/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: ingredients.map(ingredient => ({
-            name: ingredient.name,
-            quantity: ingredient.quantity,
-            unit: ingredient.unit,
-            category: ingredient.category
-          }))
-        }),
-      });
-      
-      if (!addItemsResponse.ok) {
-        const errorData = await addItemsResponse.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to add items to shopping list');
+      // We're already sending ingredients with the initial creation request,
+      // so we don't need to make a separate API call to add items
+      // unless the shopping list was created but has no items
+      if (!createData.shoppingList.items || createData.shoppingList.items.length === 0) {
+        console.log("Shopping list was created but has no items. Adding items manually...");
+        
+        // Then add the ingredients as items
+        const addItemsResponse = await fetch(`/api/shopping-lists/${shoppingListId}/items`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            items: ingredients.map(ingredient => ({
+              name: ingredient.name,
+              quantity: ingredient.quantity,
+              unit: ingredient.unit,
+              category: ingredient.category
+            }))
+          }),
+        });
+        
+        if (!addItemsResponse.ok) {
+          const errorData = await addItemsResponse.json();
+          throw new Error(errorData.message || errorData.error || 'Failed to add items to shopping list');
+        }
       }
       
       toast.success('Shopping list created successfully');

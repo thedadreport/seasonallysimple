@@ -28,21 +28,28 @@ export default function PrintShoppingListPage({ params }: PrintPageProps) {
   // Fetch shopping list data
   useEffect(() => {
     const fetchShoppingList = async () => {
-      if (status !== 'authenticated' || !params.id) return;
+      if (!params.id) return;
 
       try {
-        const response = await fetch(`/api/shopping-lists/${params.id}`);
+        console.log("Fetching shopping list:", params.id);
+        const response = await fetch(`/api/shopping-lists/${params.id}`, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Important for authentication cookies
+        });
         
         if (!response.ok) {
           throw new Error('Failed to fetch shopping list');
         }
         
-        const data: ShoppingList = await response.json();
+        const data = await response.json();
+        console.log("Shopping list data received:", data);
         
-        // Process originalIngredients JSON
+        // Process originalIngredients JSON if needed
         const processedData = {
           ...data,
-          items: data.items.map(item => {
+          items: data.items ? data.items.map(item => {
             if (item.originalIngredients && typeof item.originalIngredients === 'string') {
               try {
                 return {
@@ -54,15 +61,21 @@ export default function PrintShoppingListPage({ params }: PrintPageProps) {
               }
             }
             return item;
-          })
+          }) : []
         };
         
+        console.log("Processed shopping list data:", processedData);
         setShoppingList(processedData);
         
-        // Auto-print after loading
+        // Auto-print after loading - longer delay to ensure rendering
         setTimeout(() => {
-          window.print();
-        }, 1500);
+          if (document.querySelector('.print-content')) {
+            console.log("Printing now...");
+            window.print();
+          } else {
+            console.error("Print content not found in DOM");
+          }
+        }, 2000);
         
       } catch (err) {
         console.error('Error fetching shopping list:', err);
@@ -177,26 +190,34 @@ export default function PrintShoppingListPage({ params }: PrintPageProps) {
         <h2 className="text-2xl font-serif font-bold text-navy mb-2">{shoppingList.name}</h2>
         <p className="text-gray-600 mb-4">{new Date().toLocaleDateString()}</p>
         
-        {groupedItems.map(([category, items]) => (
-          <div key={category} className="mb-6">
-            <h3 className="text-lg font-medium text-navy capitalize border-b border-gray-200 pb-1 mb-2">
-              {category}
-            </h3>
-            <ul className="space-y-2">
-              {items.map((item) => (
-                <li key={item.id} className="flex items-start gap-2">
-                  <div className="print-checkbox border border-gray-300 w-4 h-4 mt-1 flex-shrink-0"></div>
-                  <div>
-                    <span className="font-medium">{item.name}</span>
-                    <span className="text-gray-600 ml-2">
-                      {item.quantity} {item.unit}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+        {groupedItems.length > 0 ? (
+          groupedItems.map(([category, items]) => (
+            <div key={category} className="mb-6">
+              <h3 className="text-lg font-medium text-navy capitalize border-b border-gray-200 pb-1 mb-2">
+                {category}
+              </h3>
+              <ul className="space-y-2">
+                {items.map((item) => (
+                  <li key={item.id} className="flex items-start gap-2">
+                    <div className="print-checkbox border border-gray-300 w-4 h-4 mt-1 flex-shrink-0"></div>
+                    <div>
+                      <span className="font-medium">{item.name}</span>
+                      {(item.quantity || item.unit) && (
+                        <span className="text-gray-600 ml-2">
+                          {item.quantity} {item.unit}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p className="mb-4">No items in this shopping list.</p>
           </div>
-        ))}
+        )}
 
         <div className="text-center text-gray-400 text-sm mt-8 print-footer">
           Generated with Seasonally Simple • {new Date().toLocaleDateString()}
