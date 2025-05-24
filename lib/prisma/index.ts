@@ -14,12 +14,6 @@ const prisma = globalForPrisma.prisma || new PrismaClient({
     },
   },
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  
-  // Add connection timeout options to help with Neon serverless database
-  // Only have effect if the Prisma version supports these options
-  connectionTimeout: 20000, // 20 seconds
-  maxWaitTime: 5000, // 5 seconds
-  maxNumOfReconnectAttempts: 3,
 });
 
 // Log the database URL (with credentials masked) to help with debugging
