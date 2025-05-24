@@ -151,22 +151,27 @@ export const POST = withAuth(async (request: NextRequest) => {
       shoppingListItems = await Promise.all(
         consolidatedIngredients.map(async (ingredient, index) => {
           
+          // Create item data with required fields first
+          const itemData: any = {
+            shoppingListId: shoppingList.id,
+            name: ingredient.bulkBuying 
+              ? `${ingredient.name} (Consider buying in bulk)`
+              : ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit || null,
+            category: ingredient.category || 'other',
+            bulkBuying: ingredient.bulkBuying || false,
+            orderPosition: index,
+          };
+          
+          // Conditionally add originalIngredients if it exists
+          if (ingredient.originalIngredients) {
+            itemData.originalIngredients = ingredient.originalIngredients;
+          }
+          
+          // Try to create the item, with error handling for schema mismatches
           return prisma.shoppingListItem.create({
-            data: {
-              shoppingListId: shoppingList.id,
-              name: ingredient.bulkBuying 
-                ? `${ingredient.name} (Consider buying in bulk)`
-                : ingredient.name,
-              quantity: ingredient.quantity,
-              unit: ingredient.unit || null,
-              category: ingredient.category || 'other',
-              bulkBuying: ingredient.bulkBuying || false,
-              orderPosition: index,
-              // Save original ingredients data for tooltip display
-              originalIngredients: ingredient.originalIngredients 
-                ? Prisma.JsonNull 
-                : undefined
-            },
+            data: itemData,
           }).catch((error) => {
             console.error(`Error creating shopping list item for ${ingredient.name}:`, error);
             return null; // Return null for failed items so we can filter them out
