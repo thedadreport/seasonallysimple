@@ -32,6 +32,70 @@ function formatQuantity(amount: string, unit: string): string {
   return `${amount} ${unit}`;
 }
 
+// Helper function to determine the category of an ingredient
+function determineCategory(name: string): string {
+  const categories = {
+    produce: [
+      'apple', 'banana', 'orange', 'lemon', 'lime', 'grape', 'berry', 'strawberry', 'blueberry',
+      'raspberry', 'blackberry', 'melon', 'watermelon', 'cantaloupe', 'honeydew', 'pineapple',
+      'kiwi', 'mango', 'papaya', 'peach', 'pear', 'plum', 'cherry', 'olive', 'avocado',
+      'tomato', 'potato', 'sweet potato', 'yam', 'carrot', 'celery', 'cucumber', 'zucchini',
+      'squash', 'pumpkin', 'eggplant', 'pepper', 'onion', 'garlic', 'ginger', 'shallot', 'leek',
+      'broccoli', 'cauliflower', 'cabbage', 'brussels sprout', 'kale', 'spinach', 'lettuce',
+      'arugula', 'chard', 'collard', 'mushroom', 'asparagus', 'green bean', 'pea', 'corn',
+      'radish', 'turnip', 'beet', 'rutabaga', 'artichoke', 'fennel', 'parsnip', 'herbs',
+      'vegetable', 'fruit'
+    ],
+    dairy: [
+      'milk', 'cream', 'half-and-half', 'buttermilk', 'yogurt', 'butter', 'cheese', 'cheddar',
+      'mozzarella', 'parmesan', 'gouda', 'swiss', 'brie', 'feta', 'cream cheese', 'cottage cheese',
+      'ricotta', 'sour cream', 'ice cream', 'whipping cream', 'clotted cream', 'ghee', 'egg'
+    ],
+    meat: [
+      'beef', 'steak', 'ground beef', 'pork', 'ham', 'bacon', 'sausage', 'salami', 'prosciutto',
+      'lamb', 'veal', 'chicken', 'turkey', 'duck', 'goose', 'quail', 'pheasant', 'venison',
+      'bison', 'filet', 'sirloin', 'rib', 'roast', 'chop', 'loin', 'breast', 'thigh', 'wing',
+      'drumstick', 'ground', 'meat'
+    ],
+    seafood: [
+      'fish', 'salmon', 'tuna', 'trout', 'cod', 'halibut', 'tilapia', 'sardine', 'anchovy',
+      'shrimp', 'prawn', 'crab', 'lobster', 'clam', 'mussel', 'oyster', 'scallop', 'squid',
+      'octopus', 'caviar', 'seafood'
+    ],
+    grains: [
+      'flour', 'bread', 'roll', 'baguette', 'tortilla', 'pita', 'naan', 'pasta', 'noodle',
+      'rice', 'quinoa', 'couscous', 'barley', 'oat', 'oatmeal', 'corn', 'cornmeal', 'grits',
+      'polenta', 'cereal', 'granola', 'cracker', 'chip', 'crisp', 'pretzel', 'grain'
+    ],
+    'herbs & spices': [
+      'herb', 'spice', 'basil', 'oregano', 'thyme', 'rosemary', 'sage', 'parsley', 'cilantro', 
+      'mint', 'pepper', 'salt', 'cinnamon', 'nutmeg', 'paprika', 'cumin', 'coriander', 'curry',
+      'chili', 'bay leaf', 'cardamom', 'clove', 'turmeric', 'ginger'
+    ],
+    pantry: [
+      'oil', 'vinegar', 'sauce', 'ketchup', 'mustard', 'mayonnaise', 'soy sauce', 'hot sauce',
+      'barbecue sauce', 'salsa', 'jam', 'jelly', 'honey', 'syrup', 'sugar', 'brown sugar',
+      'powdered sugar', 'stevia', 'artificial sweetener', 'molasses', 'maple', 'chocolate', 'cocoa',
+      'coffee', 'tea', 'juice', 'soda', 'water', 'broth', 'stock', 'wine', 'beer', 'liquor', 'rum',
+      'vodka', 'whiskey', 'brandy', 'gin', 'tequila', 'bourbon', 'canned', 'tomato paste',
+      'tomato sauce', 'diced tomato', 'bean', 'chickpea', 'lentil', 'soup', 'baking powder',
+      'baking soda', 'yeast', 'baking', 'frosting', 'condiment'
+    ]
+  };
+
+  const lowercaseName = name.toLowerCase();
+  
+  // Check each category for matching words
+  for (const [category, keywords] of Object.entries(categories)) {
+    if (keywords.some(keyword => lowercaseName.includes(keyword))) {
+      return category;
+    }
+  }
+  
+  // Default category if no match is found
+  return 'other';
+}
+
 // POST - Create a new shopping list from meal plan
 export const POST = withAuth(async (request: NextRequest) => {
   try {
@@ -106,21 +170,29 @@ export const POST = withAuth(async (request: NextRequest) => {
         const recipe = mealPlanItem.recipe;
         
         try {
+          console.log(`Fetching ingredients for recipe ${recipe.id} (${recipe.title})`);
+          
           // Find the associated ingredients for this recipe
           const recipeIngredients = await prisma.ingredient.findMany({
             where: { recipeId: recipe.id }
           });
           
+          console.log(`Found ${recipeIngredients.length} ingredients for recipe ${recipe.id}`);
+          
           // If we have structured ingredients in the database, use those
           if (recipeIngredients.length > 0) {
             for (const ingredient of recipeIngredients) {
+              console.log(`Adding ingredient: ${ingredient.name}, ${ingredient.amount}, ${ingredient.unit || 'no unit'}`);
               rawIngredients.push({
                 name: ingredient.name,
                 quantity: ingredient.amount,
-                unit: ingredient.unit || null
+                unit: ingredient.unit || null,
+                category: determineCategory(ingredient.name) // Add category for better organization
               });
             }
-          } 
+          } else {
+            console.warn(`No ingredients found for recipe ${recipe.id} (${recipe.title})`);
+          }
         } catch (error) {
           console.error(`Error processing recipe ${recipe.id}:`, error);
           // Continue with the next recipe rather than failing the entire request
@@ -143,8 +215,14 @@ export const POST = withAuth(async (request: NextRequest) => {
       throw error;
     });
     
+    // Log raw ingredients before consolidation
+    console.log("Raw ingredients before consolidation:", JSON.stringify(rawIngredients));
+    
     // Use the smart ingredient consolidation system
     const consolidatedIngredients = consolidateIngredients(rawIngredients);
+    
+    // Log consolidated ingredients
+    console.log("Consolidated ingredients:", JSON.stringify(consolidatedIngredients));
     
     // Pantry integration removed
     
@@ -199,13 +277,21 @@ export const POST = withAuth(async (request: NextRequest) => {
       ).then(items => items.filter(item => item !== null)); // Filter out any null items
     }
     
-    return NextResponse.json({
+    // Log the final shopping list items before returning
+    console.log(`Created ${shoppingListItems.length} shopping list items`);
+    
+    // Create the response object with all details
+    const responseData = {
       message: 'Shopping list created successfully',
       shoppingList: {
         ...shoppingList,
         items: shoppingListItems,
       },
-    });
+    };
+    
+    console.log(`Returning shopping list with ${responseData.shoppingList.items.length} items`);
+    
+    return NextResponse.json(responseData);
     
   } catch (error) {
     console.error('Failed to create shopping list:', error);

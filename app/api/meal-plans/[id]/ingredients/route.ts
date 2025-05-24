@@ -134,6 +134,8 @@ export async function GET(
       if (!item.recipe) continue;
       
       try {
+        console.log(`Processing recipe ${item.recipe.id}: ${item.recipe.title}`);
+        
         // Find all ingredients for this recipe
         const recipeIngredients = await prisma.ingredient.findMany({
           where: {
@@ -141,8 +143,11 @@ export async function GET(
           },
         });
         
+        console.log(`Found ${recipeIngredients.length} ingredients for recipe ${item.recipe.id}`);
+        
         // Process each ingredient
         for (const ingredient of recipeIngredients) {
+          console.log(`Adding ingredient: ${ingredient.name} (${ingredient.amount} ${ingredient.unit || ''})`);
           ingredients.push({
             name: ingredient.name,
             quantity: ingredient.amount,
@@ -151,15 +156,37 @@ export async function GET(
             recipeTitle: item.recipe.title,
           });
         }
+        
+        if (recipeIngredients.length === 0) {
+          console.warn(`No ingredients found for recipe ID ${item.recipe.id} (${item.recipe.title}). This is likely a data issue.`);
+          
+          // Additional debugging to check if the recipe exists in the Ingredient table
+          const ingredientCount = await prisma.ingredient.count({
+            where: { recipeId: item.recipe.id }
+          });
+          console.log(`Ingredient count in database for recipe ${item.recipe.id}: ${ingredientCount}`);
+        }
       } catch (error) {
         console.error(`Error fetching ingredients for recipe ${item.recipe.id}:`, error);
         // Continue processing other recipes even if one fails
       }
     }
     
+    console.log(`Returning ${ingredients.length} ingredients for meal plan ${mealPlanId}`);
+    
     return NextResponse.json({
       ingredients,
       mealPlanName: mealPlan.name,
+      mealPlanDetails: {
+        id: mealPlan.id,
+        recipeCount: mealPlan.items.length,
+        startDate: mealPlan.startDate,
+        endDate: mealPlan.endDate,
+      },
+      debug: {
+        ingredientCount: ingredients.length,
+        recipeIds: mealPlan.items.map(item => item.recipe?.id || 'no-recipe')
+      }
     });
     
   } catch (error) {
