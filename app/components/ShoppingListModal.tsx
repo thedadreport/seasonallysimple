@@ -57,11 +57,19 @@ export default function ShoppingListModal({
       const response = await fetch(`/api/meal-plans/${mealPlanId}/ingredients`);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to fetch ingredients');
+        // Better error handling for non-JSON responses
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message || errorData.error || 'Failed to fetch ingredients');
+        } catch (parseError) {
+          // Handle case where response is not JSON (like HTML error pages)
+          console.error('Error parsing response:', parseError);
+          throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
       }
       
       const data = await response.json();
+      console.log('Fetched meal plan ingredients:', data);
       
       if (data.ingredients && data.ingredients.length > 0) {
         // Process and consolidate ingredients
@@ -193,8 +201,13 @@ export default function ShoppingListModal({
       });
       
       if (!createResponse.ok) {
-        const errorData = await createResponse.json();
-        throw new Error(errorData.message || errorData.error || 'Failed to create shopping list');
+        try {
+          const errorData = await createResponse.json();
+          throw new Error(errorData.message || errorData.error || 'Failed to create shopping list');
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          throw new Error(`Server returned ${createResponse.status}: ${createResponse.statusText}`);
+        }
       }
       
       const createData = await createResponse.json();
@@ -223,8 +236,13 @@ export default function ShoppingListModal({
         });
         
         if (!addItemsResponse.ok) {
-          const errorData = await addItemsResponse.json();
-          throw new Error(errorData.message || errorData.error || 'Failed to add items to shopping list');
+          try {
+            const errorData = await addItemsResponse.json();
+            throw new Error(errorData.message || errorData.error || 'Failed to add items to shopping list');
+          } catch (parseError) {
+            console.error('Error parsing response:', parseError);
+            throw new Error(`Server returned ${addItemsResponse.status}: ${addItemsResponse.statusText}`);
+          }
         }
       }
       

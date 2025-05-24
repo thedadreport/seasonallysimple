@@ -120,10 +120,23 @@ export async function GET(
     });
     
     if (!mealPlan) {
+      console.log(`Meal plan ${mealPlanId} not found for user ${session.user.id}`);
       return NextResponse.json(
         { error: 'Meal plan not found or you do not have access to it' },
         { status: 404 }
       );
+    }
+    
+    console.log(`Found meal plan: ${mealPlan.name} with ${mealPlan.items.length} items`);
+    
+    // Check if this meal plan has any recipes
+    if (mealPlan.items.length === 0) {
+      console.log(`Meal plan ${mealPlanId} has no items`);
+      return NextResponse.json({ 
+        ingredients: [],
+        mealPlanName: mealPlan.name,
+        error: 'This meal plan has no recipes' 
+      });
     }
     
     // Create an array to store all ingredients
@@ -131,7 +144,10 @@ export async function GET(
     
     // Process each meal plan item to extract ingredients
     for (const item of mealPlan.items) {
-      if (!item.recipe) continue;
+      if (!item.recipe) {
+        console.log(`Skipping item with no recipe`);
+        continue;
+      }
       
       try {
         console.log(`Processing recipe ${item.recipe.id}: ${item.recipe.title}`);
@@ -145,12 +161,33 @@ export async function GET(
         
         console.log(`Found ${recipeIngredients.length} ingredients for recipe ${item.recipe.id}`);
         
+        // Check if there are no ingredients
+        if (recipeIngredients.length === 0) {
+          console.log(`No ingredients found for recipe: ${item.recipe.title}`);
+          
+          // Add a fallback ingredient with the recipe name if no ingredients are found
+          ingredients.push({
+            name: `${item.recipe.title} (ingredients not specified)`,
+            quantity: "1",
+            unit: "serving",
+            category: "other",
+            recipeTitle: item.recipe.title,
+          });
+          continue;
+        }
+        
         // Process each ingredient
         for (const ingredient of recipeIngredients) {
-          console.log(`Adding ingredient: ${ingredient.name} (${ingredient.amount} ${ingredient.unit || ''})`);
+          // Skip null or invalid ingredients
+          if (!ingredient.name) {
+            console.log(`Skipping ingredient with no name for recipe ${item.recipe.id}`);
+            continue;
+          }
+          
+          console.log(`Adding ingredient: ${ingredient.name} (${ingredient.amount || '1'} ${ingredient.unit || ''})`);
           ingredients.push({
             name: ingredient.name,
-            quantity: ingredient.amount,
+            quantity: ingredient.amount || "1",
             unit: ingredient.unit,
             category: categorizeIngredient(ingredient.name),
             recipeTitle: item.recipe.title,
@@ -173,6 +210,22 @@ export async function GET(
     }
     
     console.log(`Returning ${ingredients.length} ingredients for meal plan ${mealPlanId}`);
+    
+    // Special case - if no ingredients were found after all processing, provide a clear error
+    if (ingredients.length === 0) {
+      console.log(`No ingredients found for any recipes in meal plan ${mealPlanId}`);
+      return NextResponse.json({
+        ingredients: [],
+        mealPlanName: mealPlan.name,
+        error: 'No ingredients found in any of the recipes in this meal plan',
+        mealPlanDetails: {
+          id: mealPlan.id,
+          recipeCount: mealPlan.items.length,
+          startDate: mealPlan.startDate,
+          endDate: mealPlan.endDate,
+        }
+      });
+    }
     
     return NextResponse.json({
       ingredients,
