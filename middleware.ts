@@ -20,6 +20,13 @@ const authPaths = ['/login'];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // TEMPORARY FIX: Allow all routes while authentication is being fixed
+  // This will allow you to access all pages without authentication
+  if (process.env.NODE_ENV === 'development' || process.env.DISABLE_AUTH === 'true') {
+    console.log('Authentication check disabled for development');
+    return NextResponse.next();
+  }
+  
   // Ignore API routes
   if (pathname.startsWith('/api/')) {
     return NextResponse.next();
