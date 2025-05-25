@@ -40,9 +40,9 @@ interface Recipe {
   // Ownership info
   createdBy?: {
     id: string;
-    name?: string;
+    name?: string | null;
     email: string;
-    image?: string;
+    image?: string | null;
   };
   isOwner: boolean;
   canModerate: boolean;
