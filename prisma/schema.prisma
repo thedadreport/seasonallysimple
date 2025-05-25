@@ -48,6 +48,7 @@ model User {
   updatedAt        DateTime        @updatedAt
   resetToken       String?         @unique
   resetTokenExpiry DateTime?
+  role             UserRole        @default(USER)
   accounts         Account[]
   mealPlans        MealPlan[]
   savedRecipes     SavedRecipe[]
@@ -55,6 +56,10 @@ model User {
   comments         RecipeComment[]
   shoppingLists    ShoppingList[]
   pantryItems      PantryItem[]
+  
+  // Recipe relations
+  createdRecipes   Recipe[]        @relation("CreatedRecipes")
+  moderatedRecipes Recipe[]        @relation("ModeratedRecipes")
 }
 
 model VerificationToken {
@@ -66,28 +71,43 @@ model VerificationToken {
 }
 
 model Recipe {
-  id            String          @id @default(uuid())
-  title         String
-  description   String
-  prepTime      Int
-  cookTime      Int
-  totalTime     Int
-  servings      Int
-  difficulty    String
-  season        String
-  cuisineType   String
-  dietaryTags   String
-  imageUrl      String?
-  isAIGenerated Boolean         @default(false)
-  tips          String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @default(now()) @updatedAt
-  Ingredient    Ingredient[]
-  Instruction   Instruction[]
-  mealPlanItems MealPlanItem[]
-  NutritionInfo NutritionInfo?
-  savedBy       SavedRecipe[]
-  comments      RecipeComment[]
+  id               String           @id @default(uuid())
+  title            String
+  description      String
+  prepTime         Int
+  cookTime         Int
+  totalTime        Int
+  servings         Int
+  difficulty       String
+  season           String
+  cuisineType      String
+  dietaryTags      String
+  imageUrl         String?
+  isAIGenerated    Boolean          @default(false)
+  tips             String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @default(now()) @updatedAt
+  
+  // Privacy and ownership fields
+  createdById      String
+  createdBy        User             @relation("CreatedRecipes", fields: [createdById], references: [id], onDelete: Cascade)
+  visibility       RecipeVisibility @default(PRIVATE)
+  
+  // Moderation fields
+  moderationStatus ModerationStatus @default(PENDING)
+  publishedAt      DateTime?
+  moderatedAt      DateTime?
+  moderatedById    String?
+  moderatedBy      User?            @relation("ModeratedRecipes", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderationNotes  String?
+  
+  // Relations
+  Ingredient       Ingredient[]
+  Instruction      Instruction[]
+  mealPlanItems    MealPlanItem[]
+  NutritionInfo    NutritionInfo?
+  savedBy          SavedRecipe[]
+  comments         RecipeComment[]
 }
 
 model SavedRecipe {
@@ -211,4 +231,26 @@ model PantryItem {
   updatedAt        DateTime  @updatedAt
   userId           String
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Recipe visibility enum
+enum RecipeVisibility {
+  PRIVATE // Only visible to the creator
+  PUBLIC  // Visible to everyone and searchable
+  CURATED // Featured/highlighted recipe, only set by admins
+}
+
+// Moderation status enum
+enum ModerationStatus {
+  PENDING  // Waiting for moderation
+  APPROVED // Approved and public
+  REJECTED // Rejected by moderator
+  FLAGGED  // Flagged for review
+}
+
+// User roles enum
+enum UserRole {
+  USER      // Regular user
+  MODERATOR // Can moderate recipes
+  ADMIN     // Full admin access
 }

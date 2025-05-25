@@ -45,6 +45,7 @@ const recipeUpdateSchema = z.object({
   tips: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   isAIGenerated: z.boolean().optional(),
+  visibility: z.enum(['PRIVATE', 'PUBLIC', 'CURATED']).optional(),
 });
 
 // GET handler to retrieve a specific recipe
@@ -54,6 +55,19 @@ export async function GET(
 ) {
   try {
     const id = params.id;
+    
+    // Get the user session to check permissions
+    const session = await getSession();
+    const currentUserEmail = session?.user?.email;
+    
+    // Get user data if logged in
+    let currentUser = null;
+    if (currentUserEmail) {
+      currentUser = await prisma.user.findUnique({
+        where: { email: currentUserEmail },
+        select: { id: true, role: true }
+      });
+    }
     
     // Get recipe by ID with related data
     const recipe = await prisma.recipe.findUnique({
@@ -66,10 +80,54 @@ export async function GET(
           },
         },
         NutritionInfo: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true
+          }
+        },
+        moderatedBy: currentUser?.role === 'ADMIN' || currentUser?.role === 'MODERATOR' ? {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        } : false
       },
     });
     
     if (!recipe) {
+      return NextResponse.json({ 
+        success: false, 
+        error: { message: 'Recipe not found' } 
+      }, { status: 404 });
+    }
+    
+    // Check visibility permissions
+    const isOwner = currentUser && recipe.createdById === currentUser.id;
+    const isAdminOrModerator = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MODERATOR');
+    
+    // Private recipes are only visible to their owners and admins/moderators
+    if (
+      recipe.visibility === 'PRIVATE' && 
+      !isOwner && 
+      !isAdminOrModerator
+    ) {
+      return NextResponse.json({ 
+        success: false, 
+        error: { message: 'Recipe not found' } 
+      }, { status: 404 });
+    }
+    
+    // Public recipes with PENDING or REJECTED status are only visible to owners and admins/moderators
+    if (
+      recipe.visibility === 'PUBLIC' && 
+      (recipe.moderationStatus === 'PENDING' || recipe.moderationStatus === 'REJECTED') && 
+      !isOwner && 
+      !isAdminOrModerator
+    ) {
       return NextResponse.json({ 
         success: false, 
         error: { message: 'Recipe not found' } 
@@ -115,6 +173,34 @@ export async function GET(
       isAIGenerated: recipe.isAIGenerated,
       createdAt: recipe.createdAt,
       updatedAt: recipe.updatedAt,
+      
+      // Add privacy and moderation fields
+      visibility: recipe.visibility,
+      moderationStatus: recipe.moderationStatus,
+      publishedAt: recipe.publishedAt,
+      
+      // Add creator info
+      createdBy: {
+        id: recipe.createdBy.id,
+        name: recipe.createdBy.name,
+        email: recipe.createdBy.email,
+        image: recipe.createdBy.image
+      },
+      
+      // Add ownership and role-based flags
+      isOwner,
+      canModerate: isAdminOrModerator,
+      
+      // Add moderation details (only for admin/moderators and owners)
+      ...(isOwner || isAdminOrModerator ? {
+        moderationNotes: recipe.moderationNotes,
+        moderatedAt: recipe.moderatedAt,
+        moderatedBy: recipe.moderatedBy ? {
+          id: recipe.moderatedBy.id,
+          name: recipe.moderatedBy.name,
+          email: recipe.moderatedBy.email
+        } : null
+      } : {})
     };
     
     return NextResponse.json({ 
@@ -155,6 +241,7 @@ export async function PATCH(
     // Get user from database
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
+      select: { id: true, role: true, email: true }
     });
     
     if (!user) {
@@ -181,10 +268,66 @@ export async function PATCH(
       }, { status: 404 });
     }
     
+    // Check if user has permission to edit this recipe
+    const isOwner = recipe.createdById === user.id;
+    const isAdminOrModerator = user.role === 'ADMIN' || user.role === 'MODERATOR';
+    
+    if (!isOwner && !isAdminOrModerator) {
+      return NextResponse.json({ 
+        success: false, 
+        error: { message: 'You do not have permission to edit this recipe' } 
+      }, { status: 403 });
+    }
+    
+    // Handle visibility changes
+    let visibility = recipe.visibility;
+    let moderationStatus = recipe.moderationStatus;
+    let publishedAt = recipe.publishedAt;
+    let moderatedAt = recipe.moderatedAt;
+    let moderatedById = recipe.moderatedById;
+    
+    if (validatedData.visibility !== undefined && validatedData.visibility !== recipe.visibility) {
+      visibility = validatedData.visibility;
+      
+      // Only admins/moderators can set a recipe as CURATED
+      if (visibility === 'CURATED' && !isAdminOrModerator) {
+        return NextResponse.json({ 
+          success: false, 
+          error: { message: 'Only admins and moderators can set a recipe as curated' } 
+        }, { status: 403 });
+      }
+      
+      // If changing from PRIVATE to PUBLIC, set moderation status to PENDING (unless admin/moderator)
+      if (recipe.visibility === 'PRIVATE' && visibility === 'PUBLIC') {
+        if (isAdminOrModerator) {
+          moderationStatus = 'APPROVED';
+          publishedAt = new Date();
+          moderatedAt = new Date();
+          moderatedById = user.id;
+        } else {
+          moderationStatus = 'PENDING';
+        }
+      }
+      
+      // If changing from PUBLIC to PRIVATE, reset moderation status
+      if (recipe.visibility !== 'PRIVATE' && visibility === 'PRIVATE') {
+        // Keep the moderation status if it's already been approved
+        if (recipe.moderationStatus !== 'APPROVED') {
+          moderationStatus = 'PENDING';
+        }
+      }
+    }
+    
     // Update recipe and related data in a transaction
     await prisma.$transaction(async (tx) => {
       // Update the recipe main data
-      const updateData: any = {};
+      const updateData: any = {
+        visibility,
+        moderationStatus,
+        publishedAt,
+        moderatedAt,
+        moderatedById,
+      };
       
       if (validatedData.title) updateData.title = validatedData.title;
       if (validatedData.description) updateData.description = validatedData.description;
@@ -205,6 +348,23 @@ export async function PATCH(
       if (validatedData.tips !== undefined) updateData.tips = validatedData.tips;
       if (validatedData.imageUrl !== undefined) updateData.imageUrl = validatedData.imageUrl;
       if (validatedData.isAIGenerated !== undefined) updateData.isAIGenerated = validatedData.isAIGenerated;
+      
+      // If a published recipe content is changed, it may need re-moderation
+      if (
+        !isAdminOrModerator && 
+        (recipe.visibility === 'PUBLIC' || recipe.visibility === 'CURATED') && 
+        recipe.moderationStatus === 'APPROVED' &&
+        (
+          validatedData.title || 
+          validatedData.description || 
+          validatedData.ingredients || 
+          validatedData.instructions || 
+          validatedData.nutritionInfo
+        )
+      ) {
+        // Set back to pending if substantial content is changed
+        updateData.moderationStatus = 'PENDING';
+      }
       
       // Update the recipe if there are changes
       if (Object.keys(updateData).length > 0) {
@@ -379,6 +539,7 @@ export async function DELETE(
     // Get user from database
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
+      select: { id: true, role: true }
     });
     
     if (!user) {
@@ -399,6 +560,20 @@ export async function DELETE(
         error: { message: 'Recipe not found' } 
       }, { status: 404 });
     }
+    
+    // Check if user has permission to delete this recipe
+    const isOwner = recipe.createdById === user.id;
+    const isAdminOrModerator = user.role === 'ADMIN' || user.role === 'MODERATOR';
+    
+    if (!isOwner && !isAdminOrModerator) {
+      return NextResponse.json({ 
+        success: false, 
+        error: { message: 'You do not have permission to delete this recipe' } 
+      }, { status: 403 });
+    }
+    
+    // Admins and moderators can delete any recipe
+    // Owners can only delete their own recipes
     
     // Delete the recipe (cascade delete will handle related entities)
     await prisma.recipe.delete({

@@ -23,6 +23,18 @@ type Recipe = {
   isAIGenerated: boolean;
   createdAt: string;
   updatedAt: string;
+  
+  // Privacy and ownership fields
+  visibility: 'PRIVATE' | 'PUBLIC' | 'CURATED';
+  moderationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FLAGGED';
+  publishedAt?: string;
+  createdBy?: {
+    id: string;
+    name?: string;
+    email: string;
+    image?: string;
+  };
+  isOwner?: boolean;
 };
 
 // Filter options
@@ -57,6 +69,9 @@ function RecipesContent() {
   const [page, setPage] = useState(parseInt(searchParams.get('page') || '1'));
   const [limit] = useState(10);
   
+  // Tab view state (public recipes or user's recipes)
+  const [activeView, setActiveView] = useState('public'); // 'public' or 'my'
+  
   // Fetch recipes when filters or pagination change
   useEffect(() => {
     const fetchRecipes = async () => {
@@ -83,8 +98,12 @@ function RecipesContent() {
         queryParams.append('page', page.toString());
         queryParams.append('limit', limit.toString());
         
-        // Fetch recipes from API
-        const response = await fetch(`/api/recipes?${queryParams.toString()}`);
+        // Fetch recipes from API based on active view
+        const endpoint = activeView === 'public' 
+          ? `/api/recipes?${queryParams.toString()}`
+          : `/api/recipes/my?${queryParams.toString()}`;
+          
+        const response = await fetch(endpoint);
         
         if (!response.ok) {
           throw new Error('Failed to fetch recipes');
@@ -104,7 +123,7 @@ function RecipesContent() {
     };
     
     fetchRecipes();
-  }, [filters, page, limit]);
+  }, [filters, page, limit, activeView]);
   
   // Update URL and state when filters change
   const handleFilterChange = (filterType: string, value: string) => {
@@ -179,6 +198,30 @@ function RecipesContent() {
             Generate New Recipe
           </Link>
         </div>
+      </div>
+      
+      {/* Tab Toggle */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setActiveView('public')}
+          className={`py-2 px-4 font-medium text-sm ${
+            activeView === 'public'
+              ? 'border-b-2 border-sage text-sage'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Public Recipes
+        </button>
+        <button
+          onClick={() => setActiveView('my')}
+          className={`py-2 px-4 font-medium text-sm ${
+            activeView === 'my'
+              ? 'border-b-2 border-sage text-sage'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          My Recipes
+        </button>
       </div>
       
       <div className="flex flex-col md:flex-row gap-8 mb-12">
@@ -384,9 +427,28 @@ function RecipesContent() {
                   <div className="p-4">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-xl font-serif font-semibold">{recipe.title}</h3>
-                      {recipe.isAIGenerated && (
-                        <span className="bg-honey bg-opacity-20 text-honey text-xs px-2 py-1 rounded-full">AI Generated</span>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {/* Visibility badges */}
+                        {recipe.isOwner && (
+                          <span className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">Your Recipe</span>
+                        )}
+                        {recipe.visibility === 'PRIVATE' && (
+                          <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">Private</span>
+                        )}
+                        {recipe.visibility === 'PUBLIC' && recipe.moderationStatus === 'PENDING' && (
+                          <span className="bg-yellow-100 text-yellow-600 text-xs px-2 py-1 rounded-full">Pending</span>
+                        )}
+                        {recipe.visibility === 'CURATED' && (
+                          <span className="bg-purple-100 text-purple-600 text-xs px-2 py-1 rounded-full">Featured</span>
+                        )}
+                        {recipe.moderationStatus === 'REJECTED' && (
+                          <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full">Rejected</span>
+                        )}
+                        {/* AI Generated badge */}
+                        {recipe.isAIGenerated && (
+                          <span className="bg-honey bg-opacity-20 text-honey text-xs px-2 py-1 rounded-full">AI</span>
+                        )}
+                      </div>
                     </div>
                     
                     <p className="text-gray-600 mb-4 line-clamp-2">{recipe.description}</p>
@@ -421,14 +483,27 @@ function RecipesContent() {
           {!loading && !error && recipes.length === 0 && (
             <div className="text-center py-12">
               <h3 className="text-xl font-serif font-semibold mb-2">No recipes found</h3>
-              <p className="text-gray-600 mb-6">Try adjusting your filters or add a new recipe.</p>
+              <p className="text-gray-600 mb-6">
+                {activeView === 'public' 
+                  ? "Try adjusting your filters or check your personal recipes."
+                  : "You haven't created any recipes yet."}
+              </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link href="/recipes/add" className="btn-primary">
                   Add Recipe
                 </Link>
-                <Link href="/recipe-generator" className="btn-secondary">
-                  Generate New Recipe
-                </Link>
+                {activeView === 'public' ? (
+                  <button 
+                    onClick={() => setActiveView('my')}
+                    className="btn-secondary"
+                  >
+                    View My Recipes
+                  </button>
+                ) : (
+                  <Link href="/recipe-generator" className="btn-secondary">
+                    Generate New Recipe
+                  </Link>
+                )}
               </div>
             </div>
           )}

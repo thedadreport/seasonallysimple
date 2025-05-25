@@ -29,6 +29,23 @@ interface Recipe {
   };
   tips: string;
   userNotes?: string; // Optional user notes field
+  
+  // Privacy and ownership fields
+  visibility: 'PRIVATE' | 'PUBLIC' | 'CURATED';
+  moderationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FLAGGED';
+  publishedAt?: string;
+  moderatedAt?: string;
+  moderationNotes?: string;
+  
+  // Ownership info
+  createdBy?: {
+    id: string;
+    name?: string;
+    email: string;
+    image?: string;
+  };
+  isOwner: boolean;
+  canModerate: boolean;
 }
 
 // Mock recipe data - in a real app, this would come from an API call
@@ -79,7 +96,23 @@ const mockRecipes: Record<string, Recipe> = {
       fiber: 3,
       sodium: 380
     },
-    tips: "For extra flavor, marinate the chicken for up to 30 minutes before cooking if time allows. This dish pairs well with cooked quinoa or rice for a more filling meal. Leftovers can be stored in an airtight container in the refrigerator for up to 3 days."
+    tips: "For extra flavor, marinate the chicken for up to 30 minutes before cooking if time allows. This dish pairs well with cooked quinoa or rice for a more filling meal. Leftovers can be stored in an airtight container in the refrigerator for up to 3 days.",
+    
+    // Privacy and moderation fields
+    visibility: 'PUBLIC',
+    moderationStatus: 'APPROVED',
+    publishedAt: '2023-05-01T00:00:00Z',
+    moderatedAt: '2023-05-01T00:00:00Z',
+    
+    // Ownership
+    createdBy: {
+      id: 'user1',
+      name: 'Jane Smith',
+      email: 'jane@example.com',
+      image: null
+    },
+    isOwner: false,
+    canModerate: false
   },
   '2': {
     id: '2',
@@ -129,7 +162,21 @@ const mockRecipes: Record<string, Recipe> = {
       fiber: 4,
       sodium: 290
     },
-    tips: "For a vegan version, omit the Parmesan and use additional nutritional yeast or vegan cheese. The key to perfect risotto is adding the broth slowly and stirring frequently. Don't rush this process!"
+    tips: "For a vegan version, omit the Parmesan and use additional nutritional yeast or vegan cheese. The key to perfect risotto is adding the broth slowly and stirring frequently. Don't rush this process!",
+    
+    // Privacy and moderation fields
+    visibility: 'PRIVATE',
+    moderationStatus: 'PENDING',
+    
+    // Ownership
+    createdBy: {
+      id: 'current-user',
+      name: 'Current User',
+      email: 'user@example.com',
+      image: null
+    },
+    isOwner: true,
+    canModerate: false
   }
 };
 
@@ -143,6 +190,11 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  
+  // State for publishing modals
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishNotes, setPublishNotes] = useState('');
+  const [isPublishing, setIsPublishing] = useState(false);
   
   useEffect(() => {
     // Fetch the recipe details from the API
@@ -215,6 +267,63 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
   
   const handleEditNotes = () => {
     setIsEditing(true);
+  };
+  
+  const handleOpenPublishModal = () => {
+    setShowPublishModal(true);
+  };
+  
+  const handleClosePublishModal = () => {
+    setShowPublishModal(false);
+    setPublishNotes('');
+  };
+  
+  const handlePublishRecipe = async () => {
+    if (!recipe) return;
+    
+    try {
+      setIsPublishing(true);
+      
+      const response = await fetch(`/api/recipes/${recipe.id}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          notes: publishNotes.trim() || undefined,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to publish recipe');
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh the recipe to show updated status
+        const updatedRecipe = {
+          ...recipe,
+          visibility: 'PUBLIC',
+          moderationStatus: data.data.moderationStatus,
+          needsReview: data.data.needsReview,
+        };
+        
+        setRecipe(updatedRecipe);
+        setShowPublishModal(false);
+        setPublishNotes('');
+        
+        // Show success message
+        alert('Your recipe has been submitted for publication!');
+      } else {
+        throw new Error(data.error?.message || 'Something went wrong');
+      }
+    } catch (error) {
+      console.error('Error publishing recipe:', error);
+      alert('Failed to publish recipe. Please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
   };
   
   const handleSaveNotes = async () => {
@@ -383,8 +492,90 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
       
       <div className="mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <h1 className="text-3xl md:text-4xl font-serif font-bold text-navy print:print-recipe-title">{recipe.title}</h1>
-          <div className="flex gap-2">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-serif font-bold text-navy print:print-recipe-title mb-2">{recipe.title}</h1>
+            
+            {/* Recipe Status Indicators */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {recipe.isOwner && (
+                <div className="text-sm px-2 py-1 rounded-full border border-blue-400 text-blue-600 bg-blue-50">
+                  Your Recipe
+                </div>
+              )}
+              
+              {recipe.visibility === 'PRIVATE' && (
+                <div className="text-sm px-2 py-1 rounded-full border border-gray-400 text-gray-600 bg-gray-50">
+                  Private
+                </div>
+              )}
+              
+              {recipe.visibility === 'PUBLIC' && recipe.moderationStatus === 'PENDING' && (
+                <div className="text-sm px-2 py-1 rounded-full border border-yellow-400 text-yellow-600 bg-yellow-50">
+                  Pending Review
+                </div>
+              )}
+              
+              {recipe.visibility === 'PUBLIC' && recipe.moderationStatus === 'APPROVED' && (
+                <div className="text-sm px-2 py-1 rounded-full border border-green-400 text-green-600 bg-green-50">
+                  Published
+                </div>
+              )}
+              
+              {recipe.visibility === 'CURATED' && (
+                <div className="text-sm px-2 py-1 rounded-full border border-purple-400 text-purple-600 bg-purple-50">
+                  Featured
+                </div>
+              )}
+              
+              {recipe.moderationStatus === 'REJECTED' && (
+                <div className="text-sm px-2 py-1 rounded-full border border-red-400 text-red-600 bg-red-50">
+                  Rejected
+                </div>
+              )}
+            </div>
+            
+            {/* Creator info */}
+            {recipe.createdBy && !recipe.isOwner && (
+              <div className="text-sm text-gray-600 mb-2">
+                Created by: {recipe.createdBy.name || recipe.createdBy.email}
+              </div>
+            )}
+            
+            {/* Publication date for public recipes */}
+            {(recipe.visibility === 'PUBLIC' || recipe.visibility === 'CURATED') && 
+             recipe.moderationStatus === 'APPROVED' && recipe.publishedAt && (
+              <div className="text-sm text-gray-600">
+                Published: {new Date(recipe.publishedAt).toLocaleDateString()}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {/* Publishing buttons for owner's private recipes */}
+            {recipe.isOwner && recipe.visibility === 'PRIVATE' && (
+              <button
+                onClick={handleOpenPublishModal}
+                className="px-3 py-1 rounded-full text-sm bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1"
+              >
+                Publish Recipe
+              </button>
+            )}
+            
+            {/* Show moderation feedback for rejected recipes */}
+            {recipe.isOwner && recipe.moderationStatus === 'REJECTED' && recipe.moderationNotes && (
+              <div className="relative group">
+                <button
+                  className="px-3 py-1 rounded-full text-sm bg-red-100 text-red-700 hover:bg-red-200 flex items-center gap-1"
+                >
+                  View Feedback
+                </button>
+                <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg p-4 hidden group-hover:block z-10">
+                  <h4 className="font-semibold mb-2">Moderation Feedback:</h4>
+                  <p className="text-sm text-gray-700">{recipe.moderationNotes}</p>
+                </div>
+              </div>
+            )}
+            
             <button 
               onClick={handleSaveRecipe} 
               className={`px-3 py-1 rounded-full text-sm flex items-center gap-1 ${
@@ -393,6 +584,7 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
             >
               {isSaved ? 'Saved' : 'Save'}
             </button>
+            
             <button 
               onClick={handlePrintRecipe}
               className="px-3 py-1 rounded-full text-sm bg-cream hover:bg-gray-200 flex items-center gap-1 print:hidden"
@@ -669,6 +861,67 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
             ))}
         </div>
       </div>
+      
+      {/* Publish Recipe Modal */}
+      {showPublishModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Publish Your Recipe</h2>
+            
+            <p className="text-gray-700 mb-4">
+              By publishing your recipe, you're making it available for the community to discover and enjoy. 
+              All recipes go through a brief moderation process before becoming public.
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notes for Moderators (Optional)
+              </label>
+              <textarea
+                value={publishNotes}
+                onChange={(e) => setPublishNotes(e.target.value)}
+                placeholder="Add any context or notes for the moderators reviewing your recipe..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md h-32"
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleClosePublishModal}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                disabled={isPublishing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePublishRecipe}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={isPublishing}
+              >
+                {isPublishing ? 'Publishing...' : 'Submit for Publication'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Moderation UI for Admins/Moderators */}
+      {recipe.canModerate && recipe.moderationStatus === 'PENDING' && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex justify-between items-center shadow-lg print:hidden">
+          <div>
+            <h3 className="font-semibold text-lg">Moderation Required</h3>
+            <p className="text-gray-600">This recipe is awaiting moderation</p>
+          </div>
+          <div className="flex gap-2">
+            <Link
+              href={`/admin/recipes?recipeId=${recipe.id}`}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700"
+            >
+              Moderate Now
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

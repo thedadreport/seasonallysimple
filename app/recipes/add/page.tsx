@@ -45,6 +45,7 @@ type RecipeFormData = {
   tips?: string;
   imageUrl?: string;
   isAIGenerated: boolean;
+  visibility: 'PRIVATE' | 'PUBLIC';
 };
 
 // Component for adding a new recipe
@@ -70,6 +71,7 @@ export default function AddRecipePage() {
     servings: 4,
     tips: '',
     isAIGenerated: false,
+    visibility: 'PRIVATE', // Default to private
   });
   
   const [loading, setLoading] = useState(false);
@@ -810,6 +812,63 @@ export default function AddRecipePage() {
               <label htmlFor="isAIGenerated" className="ml-2 block text-sm text-gray-700">
                 This recipe was generated with AI assistance
               </label>
+            </div>
+            
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <h3 className="text-md font-medium text-gray-700 mb-3">Recipe Visibility</h3>
+              
+              <div className="mb-4">
+                <div className="flex items-center mb-2">
+                  <input
+                    type="radio"
+                    id="visibility-private"
+                    name="visibility"
+                    value="PRIVATE"
+                    checked={formData.visibility === 'PRIVATE'}
+                    onChange={(e) => 
+                      setFormData(prev => ({
+                        ...prev,
+                        visibility: 'PRIVATE',
+                      }))
+                    }
+                    className="h-4 w-4 text-sage focus:ring-sage border-gray-300"
+                  />
+                  <label htmlFor="visibility-private" className="ml-2 block text-sm text-gray-700">
+                    Private (Only visible to you)
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id="visibility-public"
+                    name="visibility"
+                    value="PUBLIC"
+                    checked={formData.visibility === 'PUBLIC'}
+                    onChange={(e) => 
+                      setFormData(prev => ({
+                        ...prev,
+                        visibility: 'PUBLIC',
+                      }))
+                    }
+                    className="h-4 w-4 text-sage focus:ring-sage border-gray-300"
+                  />
+                  <label htmlFor="visibility-public" className="ml-2 block text-sm text-gray-700">
+                    Public (Will be submitted for moderation)
+                  </label>
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 p-3 rounded-md text-sm text-blue-800">
+                <p className="font-medium mb-1">Privacy Notice:</p>
+                <p className="mb-2">
+                  New recipes are <strong>private by default</strong>, visible only to you.
+                </p>
+                <p>
+                  Public recipes are reviewed by moderators before being published to the community.
+                  You can change the visibility of your recipe at any time from your recipe page.
+                </p>
+              </div>
             </div>
           </div>
         </section>

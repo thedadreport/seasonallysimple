@@ -41,11 +41,16 @@ const recipeSchema = z.object({
   tips: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   isAIGenerated: z.boolean().default(false),
+  visibility: z.enum(['PRIVATE', 'PUBLIC', 'CURATED']).optional().default('PRIVATE'),
 });
 
 // GET handler to retrieve all recipes
 export async function GET(request: Request) {
   try {
+    // Get the user session to check permissions
+    const session = await getSession();
+    const currentUserEmail = session?.user?.email;
+    
     // Parse URL parameters
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') || '1');
@@ -56,6 +61,8 @@ export async function GET(request: Request) {
     const cuisine = url.searchParams.get('cuisine');
     const dietary = url.searchParams.get('dietary');
     const maxTime = url.searchParams.get('maxTime') ? parseInt(url.searchParams.get('maxTime') || '0') : null;
+    const visibility = url.searchParams.get('visibility');
+    const myRecipes = url.searchParams.get('myRecipes') === 'true';
     
     // Build where clause for filtering
     const where: any = {};
@@ -75,6 +82,44 @@ export async function GET(request: Request) {
     if (dietary) where.dietaryTags = { contains: dietary };
     if (maxTime) where.totalTime = { lte: maxTime };
     
+    // Get user data if logged in
+    let currentUser = null;
+    if (currentUserEmail) {
+      currentUser = await prisma.user.findUnique({
+        where: { email: currentUserEmail },
+        select: { id: true, role: true }
+      });
+    }
+    
+    // Handle visibility filtering
+    if (visibility) {
+      where.visibility = visibility;
+    } else if (myRecipes && currentUser) {
+      // Show only the user's recipes if myRecipes=true
+      where.createdById = currentUser.id;
+    } else {
+      // Default visibility filtering (show public and curated recipes)
+      where.visibility = { in: ['PUBLIC', 'CURATED'] };
+      
+      // For non-admins, also check moderation status
+      if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'MODERATOR')) {
+        where.moderationStatus = 'APPROVED';
+      }
+      
+      // If user is logged in, also show their private recipes
+      if (currentUser) {
+        where.OR = [
+          ...(where.OR || []),
+          {
+            AND: [
+              { visibility: 'PRIVATE' },
+              { createdById: currentUser.id }
+            ]
+          }
+        ];
+      }
+    }
+    
     // Get recipes with pagination
     const recipes = await prisma.recipe.findMany({
       where,
@@ -87,6 +132,14 @@ export async function GET(request: Request) {
           orderBy: { stepNumber: 'asc' }
         },
         NutritionInfo: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true
+          }
+        }
       },
     });
     
@@ -112,6 +165,22 @@ export async function GET(request: Request) {
       imageUrl: recipe.imageUrl,
       createdAt: recipe.createdAt,
       updatedAt: recipe.updatedAt,
+      
+      // Add privacy and moderation fields
+      visibility: recipe.visibility,
+      moderationStatus: recipe.moderationStatus,
+      publishedAt: recipe.publishedAt,
+      
+      // Add creator info
+      createdBy: recipe.createdBy ? {
+        id: recipe.createdBy.id,
+        name: recipe.createdBy.name,
+        email: recipe.createdBy.email,
+        image: recipe.createdBy.image
+      } : undefined,
+      
+      // Add ownership flag
+      isOwner: currentUser ? recipe.createdById === currentUser.id : false
     }));
     
     return NextResponse.json({ 
@@ -162,6 +231,24 @@ export async function POST(request: Request) {
       }, { status: 404 });
     }
     
+    // Determine visibility and moderation status based on user role and input
+    let visibility = validatedData.visibility || 'PRIVATE';
+    let moderationStatus = 'PENDING';
+    
+    // Admin and Moderator users can create approved public recipes directly
+    if (user.role === 'ADMIN' || user.role === 'MODERATOR') {
+      if (visibility === 'PUBLIC' || visibility === 'CURATED') {
+        moderationStatus = 'APPROVED';
+      }
+    } else {
+      // Regular users can only create PRIVATE recipes by default
+      // If they specified PUBLIC, we keep it PENDING for moderation
+      if (visibility === 'CURATED') {
+        // Regular users can't create curated recipes
+        visibility = 'PUBLIC';
+      }
+    }
+    
     // Create the recipe with a transaction to ensure all related data is created
     const result = await prisma.$transaction(async (tx) => {
       // Create the recipe
@@ -182,6 +269,20 @@ export async function POST(request: Request) {
           tips: validatedData.tips || null,
           imageUrl: validatedData.imageUrl || null,
           isAIGenerated: validatedData.isAIGenerated,
+          
+          // Set owner relationship
+          createdById: user.id,
+          
+          // Set privacy settings
+          visibility: visibility,
+          moderationStatus: moderationStatus,
+          
+          // Set moderation timestamps if already approved
+          ...(moderationStatus === 'APPROVED' && visibility !== 'PRIVATE' ? {
+            publishedAt: new Date(),
+            moderatedAt: new Date(),
+            moderatedById: user.id
+          } : {})
         },
       });
       
@@ -234,6 +335,8 @@ export async function POST(request: Request) {
       data: {
         id: result.id,
         title: result.title,
+        visibility: result.visibility,
+        moderationStatus: result.moderationStatus,
       }
     }, { status: 201 });
     
