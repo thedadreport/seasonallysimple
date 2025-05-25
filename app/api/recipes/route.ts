@@ -233,21 +233,24 @@ export async function POST(request: Request) {
     }
     
     // Determine visibility and moderation status based on user role and input
-    let visibility = (validatedData.visibility || 'PRIVATE') as RecipeVisibility;
-    let moderationStatus = ModerationStatus.PENDING;
+    let visibility: RecipeVisibility = validatedData.visibility || RecipeVisibility.PRIVATE;
+    let moderationStatus: ModerationStatus;
     
     // Admin and Moderator users can create approved public recipes directly
     if (user.role === 'ADMIN' || user.role === 'MODERATOR') {
-      if (visibility === 'PUBLIC' || visibility === 'CURATED') {
+      if (visibility === RecipeVisibility.PUBLIC || visibility === RecipeVisibility.CURATED) {
         moderationStatus = ModerationStatus.APPROVED;
+      } else {
+        moderationStatus = ModerationStatus.PENDING;
       }
     } else {
       // Regular users can only create PRIVATE recipes by default
       // If they specified PUBLIC, we keep it PENDING for moderation
-      if (visibility === 'CURATED') {
+      if (visibility === RecipeVisibility.CURATED) {
         // Regular users can't create curated recipes
-        visibility = 'PUBLIC' as RecipeVisibility;
+        visibility = RecipeVisibility.PUBLIC;
       }
+      moderationStatus = ModerationStatus.PENDING;
     }
     
     // Create the recipe with a transaction to ensure all related data is created
@@ -279,11 +282,12 @@ export async function POST(request: Request) {
           moderationStatus: moderationStatus,
           
           // Set moderation timestamps if already approved
-          ...(moderationStatus === ModerationStatus.APPROVED && visibility !== RecipeVisibility.PRIVATE ? {
-            publishedAt: new Date(),
-            moderatedAt: new Date(),
-            moderatedById: user.id
-          } : {})
+          ...(moderationStatus === ModerationStatus.APPROVED && 
+            (visibility === RecipeVisibility.PUBLIC || visibility === RecipeVisibility.CURATED) ? {
+              publishedAt: new Date(),
+              moderatedAt: new Date(),
+              moderatedById: user.id
+            } : {})
         },
       });
       
