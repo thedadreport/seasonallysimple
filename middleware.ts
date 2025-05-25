@@ -20,7 +20,12 @@ const authPaths = ['/login'];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Check if the path is protected
+  // Ignore API routes
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+  
+  // Check if the path is protected - exact match or starts with the path followed by /
   const isProtectedPath = protectedPaths.some(path => 
     pathname === path || pathname.startsWith(`${path}/`)
   );
@@ -31,7 +36,20 @@ export async function middleware(request: NextRequest) {
   );
   
   // Get the session token using Next-Auth JWT
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  // Include secure option to work with both HTTP and HTTPS
+  const token = await getToken({ 
+    req: request, 
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === 'production'
+  });
+  
+  // Debug token information
+  console.log('Middleware token check:', {
+    path: pathname,
+    hasToken: !!token,
+    tokenId: token?.sub?.substring(0, 8)
+  });
+  
   const session = !!token;
   
   // Redirect logic
@@ -54,13 +72,21 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/login', 
+    '/profile',
     '/profile/:path*',
+    '/saved-recipes',
     '/saved-recipes/:path*',
+    '/settings',
     '/settings/:path*',
+    '/upload-recipe',
     '/upload-recipe/:path*',
+    '/shopping-list',
     '/shopping-list/:path*',
+    '/pantry',
     '/pantry/:path*',
+    '/meal-plan',
     '/meal-plan/:path*',
-    '/recipes/add'
+    '/recipes/add',
+    '/api/debug/:path*'
   ]
 };

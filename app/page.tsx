@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import SessionDebug from '@/app/components/SessionDebug';
+import { auth } from '@/auth';
 
 export default function Home() {
   // We would normally fetch current season from an API or determine it based on hemisphere and date
@@ -36,6 +38,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Debug session information */}
+      <SessionDebug />
+      
       <section>
         <h2 className="text-3xl font-serif font-bold text-navy mb-6">Featured Collections</h2>
         <div className="grid md:grid-cols-3 gap-6">
