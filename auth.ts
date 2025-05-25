@@ -82,24 +82,30 @@ const authConfig: NextAuthConfig = {
   },
   callbacks: {
     // Ensure user ID and role are properly included in the session
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: any }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
         
         // Add role to session if it exists in token
-        if (token.role) {
+        if (token.role && 
+            (token.role === "USER" || 
+             token.role === "MODERATOR" || 
+             token.role === "ADMIN")) {
           session.user.role = token.role;
         }
       }
       return session;
     },
     // Add user ID and role to the JWT token
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: any; user: any }) {
       if (user) {
         token.sub = user.id;
         
         // Add user role to the token when it's available
-        if (user.role) {
+        if (user.role && 
+            (user.role === "USER" || 
+             user.role === "MODERATOR" || 
+             user.role === "ADMIN")) {
           token.role = user.role;
         }
       }
