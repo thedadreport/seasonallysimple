@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
+import { ModerationStatus, RecipeVisibility } from '@prisma/client';
 
 // Define the recipe schema for validation
 const recipeSchema = z.object({
@@ -41,7 +42,7 @@ const recipeSchema = z.object({
   tips: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   isAIGenerated: z.boolean().default(false),
-  visibility: z.enum(['PRIVATE', 'PUBLIC', 'CURATED']).optional().default('PRIVATE'),
+  visibility: z.nativeEnum(RecipeVisibility).optional().default(RecipeVisibility.PRIVATE),
 });
 
 // GET handler to retrieve all recipes
@@ -232,20 +233,20 @@ export async function POST(request: Request) {
     }
     
     // Determine visibility and moderation status based on user role and input
-    let visibility = validatedData.visibility || 'PRIVATE';
-    let moderationStatus = 'PENDING';
+    let visibility = (validatedData.visibility || 'PRIVATE') as RecipeVisibility;
+    let moderationStatus = ModerationStatus.PENDING;
     
     // Admin and Moderator users can create approved public recipes directly
     if (user.role === 'ADMIN' || user.role === 'MODERATOR') {
       if (visibility === 'PUBLIC' || visibility === 'CURATED') {
-        moderationStatus = 'APPROVED';
+        moderationStatus = ModerationStatus.APPROVED;
       }
     } else {
       // Regular users can only create PRIVATE recipes by default
       // If they specified PUBLIC, we keep it PENDING for moderation
       if (visibility === 'CURATED') {
         // Regular users can't create curated recipes
-        visibility = 'PUBLIC';
+        visibility = 'PUBLIC' as RecipeVisibility;
       }
     }
     
@@ -278,7 +279,7 @@ export async function POST(request: Request) {
           moderationStatus: moderationStatus,
           
           // Set moderation timestamps if already approved
-          ...(moderationStatus === 'APPROVED' && visibility !== 'PRIVATE' ? {
+          ...(moderationStatus === ModerationStatus.APPROVED && visibility !== RecipeVisibility.PRIVATE ? {
             publishedAt: new Date(),
             moderatedAt: new Date(),
             moderatedById: user.id
