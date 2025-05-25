@@ -3,6 +3,20 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+// Define enums for recipe visibility and moderation status
+enum RecipeVisibility {
+  PRIVATE = 'PRIVATE',
+  PUBLIC = 'PUBLIC',
+  CURATED = 'CURATED'
+}
+
+enum ModerationStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  FLAGGED = 'FLAGGED'
+}
+
 // Define Recipe interface with optional userNotes
 interface Recipe {
   id: string;
@@ -31,8 +45,8 @@ interface Recipe {
   userNotes?: string; // Optional user notes field
   
   // Privacy and ownership fields
-  visibility: 'PRIVATE' | 'PUBLIC' | 'CURATED';
-  moderationStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FLAGGED';
+  visibility: RecipeVisibility;
+  moderationStatus: ModerationStatus;
   publishedAt?: string;
   moderatedAt?: string;
   moderationNotes?: string;
@@ -99,8 +113,8 @@ const mockRecipes: Record<string, Recipe> = {
     tips: "For extra flavor, marinate the chicken for up to 30 minutes before cooking if time allows. This dish pairs well with cooked quinoa or rice for a more filling meal. Leftovers can be stored in an airtight container in the refrigerator for up to 3 days.",
     
     // Privacy and moderation fields
-    visibility: 'PUBLIC',
-    moderationStatus: 'APPROVED',
+    visibility: RecipeVisibility.PUBLIC,
+    moderationStatus: ModerationStatus.APPROVED,
     publishedAt: '2023-05-01T00:00:00Z',
     moderatedAt: '2023-05-01T00:00:00Z',
     
@@ -165,8 +179,8 @@ const mockRecipes: Record<string, Recipe> = {
     tips: "For a vegan version, omit the Parmesan and use additional nutritional yeast or vegan cheese. The key to perfect risotto is adding the broth slowly and stirring frequently. Don't rush this process!",
     
     // Privacy and moderation fields
-    visibility: 'PRIVATE',
-    moderationStatus: 'PENDING',
+    visibility: RecipeVisibility.PRIVATE,
+    moderationStatus: ModerationStatus.PENDING,
     
     // Ownership
     createdBy: {
@@ -304,8 +318,8 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
         // Refresh the recipe to show updated status
         const updatedRecipe = {
           ...recipe,
-          visibility: 'PUBLIC',
-          moderationStatus: data.data.moderationStatus,
+          visibility: RecipeVisibility.PUBLIC,
+          moderationStatus: data.data.moderationStatus as ModerationStatus,
           needsReview: data.data.needsReview,
         };
         
