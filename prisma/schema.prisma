@@ -4,9 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Account {
@@ -51,11 +50,11 @@ model User {
   role             UserRole        @default(USER)
   accounts         Account[]
   mealPlans        MealPlan[]
+  pantryItems      PantryItem[]
+  comments         RecipeComment[]
   savedRecipes     SavedRecipe[]
   sessions         Session[]
-  comments         RecipeComment[]
   shoppingLists    ShoppingList[]
-  pantryItems      PantryItem[]
   
   // Recipe relations
   createdRecipes   Recipe[]        @relation("CreatedRecipes")
@@ -82,11 +81,6 @@ model Recipe {
   season           String
   cuisineType      String
   dietaryTags      String
-  imageUrl         String?
-  isAIGenerated    Boolean          @default(false)
-  tips             String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @default(now()) @updatedAt
   
   // Privacy and ownership fields
   createdById      String
@@ -100,14 +94,17 @@ model Recipe {
   moderatedById    String?
   moderatedBy      User?            @relation("ModeratedRecipes", fields: [moderatedById], references: [id], onDelete: SetNull)
   moderationNotes  String?
-  
-  // Relations
-  Ingredient       Ingredient[]
-  Instruction      Instruction[]
-  mealPlanItems    MealPlanItem[]
-  NutritionInfo    NutritionInfo?
-  savedBy          SavedRecipe[]
-  comments         RecipeComment[]
+  imageUrl      String?
+  isAIGenerated Boolean         @default(false)
+  tips          String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+  Ingredient    Ingredient[]
+  Instruction   Instruction[]
+  mealPlanItems MealPlanItem[]
+  NutritionInfo NutritionInfo?
+  comments      RecipeComment[]
+  savedBy       SavedRecipe[]
 }
 
 model SavedRecipe {
@@ -122,14 +119,14 @@ model SavedRecipe {
 }
 
 model MealPlan {
-  id            String          @id @default(uuid())
+  id            String         @id @default(uuid())
   userId        String
   name          String
   startDate     DateTime
   endDate       DateTime
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   items         MealPlanItem[]
   shoppingLists ShoppingList[]
 }
@@ -182,8 +179,8 @@ model RecipeComment {
   updatedAt DateTime @updatedAt
   userId    String
   recipeId  String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ShoppingList {
@@ -193,44 +190,44 @@ model ShoppingList {
   mealPlanId String?
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
-  items      ShoppingListItem[]
+  mealPlan   MealPlan?          @relation(fields: [mealPlanId], references: [id])
   user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mealPlan   MealPlan?          @relation(fields: [mealPlanId], references: [id], onDelete: SetNull)
+  items      ShoppingListItem[]
 }
 
 model ShoppingListItem {
-  id                 String       @id @default(uuid())
-  name               String
-  quantity           String       @default("1")
-  unit               String?
-  category           String       @default("other")
-  checked            Boolean      @default(false)
-  bulkBuying         Boolean      @default(false)
+  id                  String       @id @default(uuid())
+  name                String
+  quantity            String       @default("1")
+  unit                String?
+  category            String       @default("other")
+  checked             Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  shoppingListId      String
+  bulkBuying          Boolean      @default(false)
   originalIngredients Json?
-  orderPosition      Int          @default(0)
-  excludedFromPantry Boolean      @default(false)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  shoppingListId     String
-  shoppingList       ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+  orderPosition       Int          @default(0)
+  excludedFromPantry  Boolean      @default(false)
+  shoppingList        ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
 }
 
 model PantryItem {
-  id               String    @id @default(uuid())
-  name             String
-  quantity         String    @default("1")
-  unit             String?
-  category         String    @default("other")
+  id                String    @id @default(uuid())
+  name              String
+  quantity          String    @default("1")
+  unit              String?
+  category          String    @default("other")
   usuallyHaveOnHand Boolean   @default(true)
-  currentAmount    String    @default("0")
-  minimumAmount    String?
-  expirationDate   DateTime?
-  needsRestock     Boolean   @default(false)
-  notifyWhenLow    Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentAmount     String    @default("0")
+  minimumAmount     String?
+  expirationDate    DateTime?
+  needsRestock      Boolean   @default(false)
+  notifyWhenLow     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Recipe visibility enum
