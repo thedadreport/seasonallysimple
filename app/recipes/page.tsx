@@ -106,10 +106,16 @@ function RecipesContent() {
         const response = await fetch(endpoint);
         
         if (!response.ok) {
-          throw new Error('Failed to fetch recipes');
+          const errorData = await response.json();
+          throw new Error(errorData.error?.message || 'Failed to fetch recipes');
         }
         
         const data = await response.json();
+        
+        // Verify that data was returned properly
+        if (!data || !data.data) {
+          throw new Error('Invalid response format from API');
+        }
         
         setRecipes(data.data);
         setTotalRecipes(data.pagination.total);

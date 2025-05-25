@@ -39,6 +39,7 @@ const authConfig: NextAuthConfig = {
             id: `dev-user-${Date.now()}`,
             email: credentials.email as string,
             name: "Development User",
+            role: "ADMIN", // Grant admin role in development mode
           };
         }
         
@@ -63,6 +64,7 @@ const authConfig: NextAuthConfig = {
             id: user.id,
             email: user.email,
             name: user.name,
+            role: user.role,
           };
         } catch (error) {
           console.error("Database error during login: ", error);
@@ -79,17 +81,27 @@ const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   callbacks: {
-    // Ensure user ID is properly included in the session
+    // Ensure user ID and role are properly included in the session
     async session({ session, token }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
+        
+        // Add role to session if it exists in token
+        if (token.role) {
+          session.user.role = token.role;
+        }
       }
       return session;
     },
-    // Add user ID to the JWT token
+    // Add user ID and role to the JWT token
     async jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
+        
+        // Add user role to the token when it's available
+        if (user.role) {
+          token.role = user.role;
+        }
       }
       return token;
     },

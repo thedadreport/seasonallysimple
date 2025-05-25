@@ -50,17 +50,19 @@ const authOptions: any = {
         try {
           const email = credentials.email as string;
           
-          // IMPORTANT: Always use development mode for now until database is fixed
-          console.log('DEVELOPMENT MODE OVERRIDE: All login credentials accepted');
+          // Only use development mode bypass in development environment
+          if (process.env.NODE_ENV === 'development') {
+            console.log('DEVELOPMENT MODE: Using bypass for login');
+            
+            return {
+              id: `dev-user-${Date.now()}`,
+              email: credentials.email as string,
+              name: "Development User",
+              role: "ADMIN", // Grant admin role in development mode
+            };
+          }
           
-          return {
-            id: `dev-user-${Date.now()}`,
-            email: credentials.email as string,
-            name: "Development User",
-            role: "ADMIN", // Grant admin role in development mode
-          };
-          
-          /* Disable for now due to database issues
+          // Use real database authentication
           const user = await prisma.user.findUnique({
             where: { email },
           });
@@ -82,7 +84,6 @@ const authOptions: any = {
             name: user.name,
             role: user.role,
           };
-          */
         } catch (error) {
           console.error("Database error during login: ", error);
           // Return dev user as fallback

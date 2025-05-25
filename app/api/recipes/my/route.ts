@@ -140,9 +140,25 @@ export async function GET(request: Request) {
     
   } catch (error) {
     console.error('Error getting user recipes:', error);
+    
+    // Provide more detailed error messages
+    let errorMessage = 'Failed to get recipes';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      // Check for specific database connection errors
+      if (error.message.includes('Could not connect to the database')) {
+        errorMessage = 'Database connection failed. Please try again later.';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Database request timed out. Please try again later.';
+      } else if (error.message.includes('prisma')) {
+        errorMessage = 'Database error: ' + error.message;
+      }
+    }
+    
     return NextResponse.json({ 
       success: false, 
-      error: { message: 'Failed to get recipes' } 
-    }, { status: 500 });
+      error: { message: errorMessage } 
+    }, { status: statusCode });
   }
 }
