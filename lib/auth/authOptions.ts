@@ -43,6 +43,7 @@ const authOptions: any = {
             id: `dev-user-${Date.now()}`,
             email: credentials.email as string,
             name: "Development User",
+            role: "ADMIN", // Grant admin role in development mode
           };
         }
         
@@ -67,6 +68,7 @@ const authOptions: any = {
             id: user.id,
             email: user.email,
             name: user.name,
+            role: user.role,
           };
         } catch (error) {
           console.error("Database error during login: ", error);
@@ -86,9 +88,21 @@ const authOptions: any = {
     async session({ session, token }: { session: any; token: any }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
+        
+        // Add role to session if it exists in token
+        if (token.role) {
+          session.user.role = token.role;
+        }
       }
       return session;
     },
+    async jwt({ token, user }: { token: any; user: any }) {
+      // Add user role to the token when it's available
+      if (user?.role) {
+        token.role = user.role;
+      }
+      return token;
+    }
   },
 };
 

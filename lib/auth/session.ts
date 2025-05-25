@@ -8,6 +8,7 @@ export interface SessionUser {
   name?: string | null;
   email?: string | null;
   image?: string | null;
+  role?: "USER" | "MODERATOR" | "ADMIN" | null;
 }
 
 export interface Session {
@@ -39,6 +40,7 @@ export async function getServerSessionWrapper(): Promise<Session | null> {
           name: session.user.name,
           email: session.user.email,
           image: session.user.image,
+          role: session.user.role,
         },
         expires: session.expires || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       };
@@ -52,6 +54,7 @@ export async function getServerSessionWrapper(): Promise<Session | null> {
           id: `dev-user-${Date.now()}`,
           name: "Development User",
           email: "dev@example.com",
+          role: "ADMIN", // Grant admin role in development mode
         },
         expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       };
@@ -82,6 +85,7 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      role?: "USER" | "MODERATOR" | "ADMIN" | null;
     };
   }
 }
