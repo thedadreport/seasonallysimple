@@ -27,7 +27,41 @@ export async function POST(request: NextRequest) {
     // Create recipes in database
     const createdRecipes = [];
     
-    for (const recipe of recipes) {
+    // Define the interface for recipe objects
+    interface RecipeInput {
+      title: string;
+      description?: string;
+      timings?: {
+        prep?: number;
+        cook?: number;
+        total?: number;
+      };
+      servings?: number;
+      cookingDifficulty?: string;
+      season?: string;
+      tags?: string[];
+      estimatedCostPerServing?: number;
+      tips?: string;
+      nutritionInfo?: {
+        calories: number;
+        protein: number;
+        carbs: number;
+        fat: number;
+        fiber?: number;
+        sodium?: number;
+      };
+      ingredients?: Array<{
+        amount?: string;
+        unit?: string;
+        name: string;
+      }>;
+      instructions?: Array<{
+        stepNumber: number;
+        text: string;
+      }>;
+    }
+    
+    for (const recipe of recipes as RecipeInput[]) {
       // Create the recipe with basic information
       const createdRecipe = await prisma.recipe.create({
         data: {
@@ -39,7 +73,7 @@ export async function POST(request: NextRequest) {
           servings: recipe.servings || 4,
           difficulty: recipe.cookingDifficulty || 'easy',
           season: recipe.season || '',
-          cuisineType: recipe.tags?.find(tag => 
+          cuisineType: recipe.tags?.find((tag: string) => 
             ['italian', 'mexican', 'asian', 'mediterranean', 'american', 'indian', 'french', 'middle eastern']
             .includes(tag.toLowerCase())
           ) || '',
@@ -81,7 +115,7 @@ export async function POST(request: NextRequest) {
       if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
         try {
           // Create ingredients for the recipe
-          const ingredientsPromises = recipe.ingredients.map((ingredient, index) => {
+          const ingredientsPromises = recipe.ingredients.map((ingredient: {amount?: string, unit?: string, name?: string}, index: number) => {
             return prisma.ingredient.create({
               data: {
                 id: `${createdRecipe.id}-ingredient-${index}`,
@@ -104,7 +138,7 @@ export async function POST(request: NextRequest) {
       if (recipe.instructions && Array.isArray(recipe.instructions)) {
         try {
           // Create instructions for the recipe
-          const instructionsPromises = recipe.instructions.map((instruction) => {
+          const instructionsPromises = recipe.instructions.map((instruction: {stepNumber: number, text: string}) => {
             return prisma.instruction.create({
               data: {
                 id: `${createdRecipe.id}-instruction-${instruction.stepNumber}`,
