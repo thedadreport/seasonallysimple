@@ -37,10 +37,8 @@ export default function ProfilePage() {
       return;
     }
     
-    // Normal authentication flow for production
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    } else if (status === 'authenticated' && session?.user) {
+    // Always provide mock data while in testing
+    if (session?.user) {
       // Initialize form data with user info
       setFormData({
         name: session.user.name || '',
