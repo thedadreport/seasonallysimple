@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     const createdRecipes = [];
     
     for (const recipe of recipes) {
+      // Create the recipe with basic information
       const createdRecipe = await prisma.recipe.create({
         data: {
           title: recipe.title,
@@ -37,19 +38,101 @@ export async function POST(request: NextRequest) {
           totalTime: recipe.timings?.total || 0,
           servings: recipe.servings || 4,
           difficulty: recipe.cookingDifficulty || 'easy',
-          season: '',
-          cuisineType: '',
+          season: recipe.season || '',
+          cuisineType: recipe.tags?.find(tag => 
+            ['italian', 'mexican', 'asian', 'mediterranean', 'american', 'indian', 'french', 'middle eastern']
+            .includes(tag.toLowerCase())
+          ) || '',
           dietaryTags: recipe.tags?.join(',') || '',
-          visibility: 'PRIVATE',
+          visibility: 'PUBLIC', // Make them public so they can be found by other users
           isAIGenerated: true,
           createdById: userId,
+          // Add estimated cost if available
+          ...(recipe.estimatedCostPerServing ? {
+            tips: `Estimated cost per serving: $${recipe.estimatedCostPerServing.toFixed(2)}. ${recipe.tips || ''}`
+          } : {
+            tips: recipe.tips || ''
+          })
         }
       });
+      
+      // If the recipe has nutritional information, add it
+      if (recipe.nutritionInfo) {
+        try {
+          await prisma.nutritionInfo.create({
+            data: {
+              id: `nutrition-${createdRecipe.id}`,
+              recipeId: createdRecipe.id,
+              calories: recipe.nutritionInfo.calories || 0,
+              protein: recipe.nutritionInfo.protein || 0,
+              carbs: recipe.nutritionInfo.carbs || 0,
+              fat: recipe.nutritionInfo.fat || 0,
+              fiber: recipe.nutritionInfo.fiber || 0,
+              sodium: recipe.nutritionInfo.sodium || 0
+            }
+          });
+        } catch (error) {
+          console.error('Failed to create nutrition info:', error);
+          // Continue anyway, the recipe is more important than the nutrition info
+        }
+      }
+      
+      // If the recipe has ingredients, add them
+      if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+        try {
+          // Create ingredients for the recipe
+          const ingredientsPromises = recipe.ingredients.map((ingredient, index) => {
+            return prisma.ingredient.create({
+              data: {
+                id: `${createdRecipe.id}-ingredient-${index}`,
+                recipeId: createdRecipe.id,
+                amount: ingredient.amount || '',
+                unit: ingredient.unit || '',
+                name: ingredient.name || ''
+              }
+            });
+          });
+          
+          await Promise.all(ingredientsPromises);
+        } catch (error) {
+          console.error('Failed to create ingredients:', error);
+          // Continue anyway, the recipe is still usable
+        }
+      }
+      
+      // If the recipe has instructions, add them
+      if (recipe.instructions && Array.isArray(recipe.instructions)) {
+        try {
+          // Create instructions for the recipe
+          const instructionsPromises = recipe.instructions.map((instruction) => {
+            return prisma.instruction.create({
+              data: {
+                id: `${createdRecipe.id}-instruction-${instruction.stepNumber}`,
+                recipeId: createdRecipe.id,
+                stepNumber: instruction.stepNumber,
+                text: instruction.text
+              }
+            });
+          });
+          
+          await Promise.all(instructionsPromises);
+        } catch (error) {
+          console.error('Failed to create instructions:', error);
+          // Continue anyway, the recipe is still usable
+        }
+      }
       
       createdRecipes.push({
         id: createdRecipe.id,
         title: createdRecipe.title,
-        originalId: recipe.title // Keep track of the original title for mapping
+        originalId: recipe.title, // Keep track of the original title for mapping
+        description: createdRecipe.description,
+        difficulty: createdRecipe.difficulty,
+        prepTime: createdRecipe.prepTime,
+        cookTime: createdRecipe.cookTime,
+        totalTime: createdRecipe.totalTime,
+        servings: createdRecipe.servings,
+        isComplete: true // Mark as complete so UI knows it's a full recipe
       });
     }
     
