@@ -943,7 +943,7 @@ export default function MealPlanPage() {
         </div>
       </div>
       
-      <div className="mt-8 text-center">
+      <div className="mt-8 flex flex-col md:flex-row justify-center items-center gap-6">
         <Link 
           href="/recipe-generator" 
           className="inline-flex items-center text-sage hover:underline"
@@ -963,6 +963,27 @@ export default function MealPlanPage() {
               d="M9 5l7 7-7 7" 
             />
           </svg>
+        </Link>
+        
+        <Link 
+          href="/meal-plan-generator" 
+          className="inline-flex items-center px-4 py-2 bg-sage text-white rounded-md shadow-sm hover:bg-sage-dark transition-colors"
+        >
+          <svg 
+            className="mr-2 w-5 h-5" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M12 6v6m0 0v6m0-6h6m-6 0H6" 
+            />
+          </svg>
+          Generate a Complete Meal Plan
         </Link>
       </div>
       

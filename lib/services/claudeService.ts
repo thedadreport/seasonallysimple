@@ -12,6 +12,20 @@ type RecipeGenerationParams = {
   specialRequests?: string;
 };
 
+type WeeklyMealPlanParams = {
+  dietaryRestrictions?: string[];
+  servings: number;
+  season: string;
+  weeklyBudget?: number;
+  quickMealsNeeded?: boolean;
+  familyFriendly?: boolean; 
+  preferredCuisines?: string[];
+  includeBreakfast?: boolean;
+  includeLunch?: boolean;
+  includeDinner?: boolean;
+  mealPrepFriendly?: boolean;
+};
+
 export type ClaudeResponse = {
   title: string;
   description: string;
@@ -38,6 +52,40 @@ export type ClaudeResponse = {
     sodium: number;
   };
   tips: string;
+};
+
+export type MealPlanRecipe = {
+  title: string;
+  description: string;
+  timings: {
+    prep: number;
+    cook: number;
+    total: number;
+  };
+  estimatedCostPerServing: number;
+  servings: number;
+  tags: string[];
+  cookingDifficulty: string;
+};
+
+export type WeeklyMealPlanDay = {
+  day: string;
+  breakfast?: MealPlanRecipe;
+  lunch?: MealPlanRecipe;
+  dinner?: MealPlanRecipe;
+};
+
+export type WeeklyMealPlanResponse = {
+  weeklyPlan: WeeklyMealPlanDay[];
+  totalCost: number;
+  nutritionSummary: {
+    averageDailyCalories: number;
+    proteinPercentage: number;
+    carbsPercentage: number;
+    fatPercentage: number;
+  };
+  shoppingTips: string;
+  mealPrepTips?: string;
 };
 
 export type ClaudeErrorResponse = {
@@ -365,4 +413,431 @@ function getMockRecipe(params: RecipeGenerationParams): ClaudeResponse {
       tips: "This is a customizable recipe template. Feel free to adjust seasonings and ingredients based on local availability and personal preferences."
     };
   }
+}
+
+/**
+ * Generates a complete weekly meal plan using Claude API
+ */
+export async function generateWeeklyMealPlan(params: WeeklyMealPlanParams): Promise<WeeklyMealPlanResponse> {
+  // Format the parameters for the Claude prompt
+  const dietaryRestrictions = params.dietaryRestrictions?.join(', ') || 'none';
+  const preferredCuisines = params.preferredCuisines?.join(', ') || 'variety';
+  const mealTypes = [];
+  if (params.includeBreakfast) mealTypes.push('breakfast');
+  if (params.includeLunch) mealTypes.push('lunch');
+  if (params.includeDinner !== false) mealTypes.push('dinner'); // Include dinner by default
+  
+  // Construct the Claude prompts
+  const systemPrompt = `You are an expert meal planner and chef specializing in seasonal, family-friendly cooking. 
+You create balanced, practical weekly meal plans that use ingredients at their peak freshness while accommodating dietary needs and budget constraints. 
+Your meal plans are well-structured, consider leftovers and meal prep opportunities, and aim to reduce food waste.`;
+  
+  const userPrompt = `Create a complete 7-day meal plan that meets these requirements:
+  
+DIETARY NEEDS: ${dietaryRestrictions}
+SERVINGS NEEDED: ${params.servings}
+SEASONAL FOCUS: ${params.season.toLowerCase()}
+${params.weeklyBudget ? `WEEKLY BUDGET: $${params.weeklyBudget}` : 'BUDGET: moderate'}
+${params.quickMealsNeeded ? 'INCLUDE QUICK MEALS: Yes, for busy weeknights' : ''}
+${params.familyFriendly ? 'FAMILY-FRIENDLY: Yes, suitable for children' : ''}
+PREFERRED CUISINES: ${preferredCuisines}
+MEAL TYPES: ${mealTypes.join(', ')}
+${params.mealPrepFriendly ? 'MEAL PREP FRIENDLY: Yes, include batch cooking opportunities' : ''}
+
+IMPORTANT: Return your response in a strict JSON format with the following fields:
+{
+  "weeklyPlan": [
+    {
+      "day": "Monday",
+      ${params.includeBreakfast ? `"breakfast": {
+        "title": "Recipe Title",
+        "description": "Brief description",
+        "timings": {
+          "prep": 10,
+          "cook": 15,
+          "total": 25
+        },
+        "estimatedCostPerServing": 2.50,
+        "servings": 4,
+        "tags": ["quick", "vegetarian"],
+        "cookingDifficulty": "easy"
+      },` : ''}
+      ${params.includeLunch ? `"lunch": {
+        "title": "Recipe Title",
+        "description": "Brief description",
+        "timings": {
+          "prep": 10,
+          "cook": 15,
+          "total": 25
+        },
+        "estimatedCostPerServing": 3.25,
+        "servings": 4,
+        "tags": ["make-ahead", "protein-rich"],
+        "cookingDifficulty": "easy"
+      },` : ''}
+      "dinner": {
+        "title": "Recipe Title",
+        "description": "Brief description",
+        "timings": {
+          "prep": 15,
+          "cook": 30,
+          "total": 45
+        },
+        "estimatedCostPerServing": 4.75,
+        "servings": 4,
+        "tags": ["seasonal", "family-friendly"],
+        "cookingDifficulty": "medium"
+      }
+    }
+    // Repeat for all 7 days
+  ],
+  "totalCost": 120.50,
+  "nutritionSummary": {
+    "averageDailyCalories": 2100,
+    "proteinPercentage": 25,
+    "carbsPercentage": 50,
+    "fatPercentage": 25
+  },
+  "shoppingTips": "Shopping and ingredient tips",
+  "mealPrepTips": "Meal prep suggestions"
+}
+
+Ensure that your response is only valid JSON with no preamble or additional text outside the JSON structure.`;
+
+  // Check if we're in development mode without API key
+  if (process.env.NODE_ENV === 'development' && !process.env.CLAUDE_API_KEY) {
+    console.warn('CLAUDE_API_KEY not found in environment variables. Using mock data for meal plan.');
+    return getMockWeeklyMealPlan(params);
+  }
+  
+  // In production, throw error if API key is missing
+  if (process.env.NODE_ENV === 'production' && !process.env.CLAUDE_API_KEY) {
+    throw new Error('Claude API key is required in production environment');
+  }
+  
+  const apiUrl = process.env.CLAUDE_API_URL || 'https://api.anthropic.com/v1/messages';
+  const apiKey = process.env.CLAUDE_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('Claude API key is not configured');
+  }
+  
+  try {
+    console.log('Calling Claude API to generate weekly meal plan...');
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-7-sonnet-20250219',
+        system: systemPrompt,
+        messages: [{
+          role: 'user',
+          content: userPrompt
+        }],
+        max_tokens: 8000,
+        temperature: 0.7
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('Claude API error:', data);
+      throw new Error(data.error?.message || 'Error calling Claude API');
+    }
+    
+    // Extract the meal plan JSON from Claude's response
+    try {
+      const content = data.content?.[0]?.text || '';
+      
+      // Find JSON in the response (in case Claude adds any explanatory text)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      
+      if (!jsonMatch) {
+        throw new Error('No valid JSON found in Claude response');
+      }
+      
+      const mealPlanJson = jsonMatch[0];
+      const mealPlan = JSON.parse(mealPlanJson) as WeeklyMealPlanResponse;
+      
+      // Validate the meal plan structure
+      validateMealPlanStructure(mealPlan);
+      
+      return mealPlan;
+    } catch (parseError) {
+      console.error('Error parsing Claude response:', parseError);
+      throw new Error('Failed to parse meal plan data from Claude response');
+    }
+  } catch (error) {
+    console.error('Error generating meal plan with Claude:', error);
+    throw error;
+  }
+}
+
+/**
+ * Validates that the parsed meal plan has the expected structure
+ */
+function validateMealPlanStructure(mealPlan: any): void {
+  const requiredFields = [
+    'weeklyPlan', 
+    'totalCost', 
+    'nutritionSummary', 
+    'shoppingTips'
+  ];
+  
+  for (const field of requiredFields) {
+    if (!mealPlan[field]) {
+      throw new Error(`Missing required field in meal plan: ${field}`);
+    }
+  }
+  
+  // Validate weekly plan structure
+  if (!Array.isArray(mealPlan.weeklyPlan) || mealPlan.weeklyPlan.length !== 7) {
+    throw new Error('Weekly plan must contain exactly 7 days');
+  }
+  
+  // Validate nutrition summary
+  if (!mealPlan.nutritionSummary.averageDailyCalories || 
+      !mealPlan.nutritionSummary.proteinPercentage ||
+      !mealPlan.nutritionSummary.carbsPercentage ||
+      !mealPlan.nutritionSummary.fatPercentage) {
+    throw new Error('Nutrition summary is incomplete');
+  }
+}
+
+/**
+ * Gets a mock weekly meal plan for development/testing purposes
+ */
+function getMockWeeklyMealPlan(params: WeeklyMealPlanParams): WeeklyMealPlanResponse {
+  const isFamily = params.familyFriendly || params.servings >= 4;
+  const season = params.season.toLowerCase();
+  
+  return {
+    weeklyPlan: [
+      {
+        day: "Monday",
+        breakfast: params.includeBreakfast ? {
+          title: "Overnight Oats with Seasonal Berries",
+          description: "Quick, make-ahead breakfast with rolled oats, yogurt, and fresh berries",
+          timings: { prep: 10, cook: 0, total: 10 },
+          estimatedCostPerServing: 1.75,
+          servings: params.servings,
+          tags: ["make-ahead", "vegetarian", "high-fiber"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        lunch: params.includeLunch ? {
+          title: "Mediterranean Chickpea Salad",
+          description: "Protein-packed salad with chickpeas, cucumber, tomatoes, and feta",
+          timings: { prep: 15, cook: 0, total: 15 },
+          estimatedCostPerServing: 2.50,
+          servings: params.servings,
+          tags: ["no-cook", "high-protein", "vegetarian"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        dinner: {
+          title: "Sheet Pan Lemon Herb Chicken with Spring Vegetables",
+          description: "Easy one-pan dinner with tender chicken and seasonal vegetables",
+          timings: { prep: 15, cook: 30, total: 45 },
+          estimatedCostPerServing: 3.75,
+          servings: params.servings,
+          tags: ["one-pan", "high-protein", season],
+          cookingDifficulty: "easy"
+        }
+      },
+      {
+        day: "Tuesday",
+        breakfast: params.includeBreakfast ? {
+          title: "Spinach and Feta Egg Muffins",
+          description: "Protein-packed breakfast egg muffins with spinach and feta cheese",
+          timings: { prep: 15, cook: 20, total: 35 },
+          estimatedCostPerServing: 1.50,
+          servings: params.servings,
+          tags: ["make-ahead", "high-protein", "vegetarian"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        lunch: params.includeLunch ? {
+          title: "Leftover Chicken Wrap",
+          description: "Quick wrap using leftover chicken from Monday's dinner",
+          timings: { prep: 10, cook: 0, total: 10 },
+          estimatedCostPerServing: 2.00,
+          servings: params.servings,
+          tags: ["leftovers", "quick", "high-protein"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        dinner: {
+          title: `${season.charAt(0).toUpperCase() + season.slice(1)} Vegetable Risotto`,
+          description: `Creamy Italian risotto with fresh ${season} vegetables`,
+          timings: { prep: 15, cook: 30, total: 45 },
+          estimatedCostPerServing: 2.75,
+          servings: params.servings,
+          tags: ["vegetarian", "comfort-food", season],
+          cookingDifficulty: "medium"
+        }
+      },
+      {
+        day: "Wednesday",
+        breakfast: params.includeBreakfast ? {
+          title: "Green Smoothie Bowl",
+          description: "Nutrient-packed smoothie bowl with spinach, banana, and seasonal fruit",
+          timings: { prep: 10, cook: 0, total: 10 },
+          estimatedCostPerServing: 2.00,
+          servings: params.servings,
+          tags: ["quick", "vegetarian", "high-fiber"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        lunch: params.includeLunch ? {
+          title: "Leftover Risotto Arancini",
+          description: "Crispy rice balls made from leftover risotto",
+          timings: { prep: 20, cook: 15, total: 35 },
+          estimatedCostPerServing: 1.50,
+          servings: params.servings,
+          tags: ["leftovers", "kid-friendly", "vegetarian"],
+          cookingDifficulty: "medium"
+        } : undefined,
+        dinner: {
+          title: isFamily ? "Taco Night with Seasonal Toppings" : "Quick Bean and Vegetable Tacos",
+          description: isFamily ? "Family-friendly taco night with seasonal vegetable toppings" : "Quick vegetarian tacos with beans and seasonal vegetables",
+          timings: { prep: 20, cook: 15, total: 35 },
+          estimatedCostPerServing: 3.25,
+          servings: params.servings,
+          tags: ["customizable", "kid-friendly", "high-protein"],
+          cookingDifficulty: "easy"
+        }
+      },
+      {
+        day: "Thursday",
+        breakfast: params.includeBreakfast ? {
+          title: "Avocado Toast with Poached Eggs",
+          description: "Classic avocado toast topped with perfectly poached eggs",
+          timings: { prep: 10, cook: 5, total: 15 },
+          estimatedCostPerServing: 2.50,
+          servings: params.servings,
+          tags: ["quick", "vegetarian", "high-protein"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        lunch: params.includeLunch ? {
+          title: "Mason Jar Salad",
+          description: "Layered salad in a jar with grains, protein, and seasonal vegetables",
+          timings: { prep: 15, cook: 0, total: 15 },
+          estimatedCostPerServing: 3.00,
+          servings: params.servings,
+          tags: ["make-ahead", "portable", "high-fiber"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        dinner: {
+          title: "One-Pot Pasta Primavera",
+          description: `Easy one-pot pasta loaded with ${season} vegetables`,
+          timings: { prep: 15, cook: 20, total: 35 },
+          estimatedCostPerServing: 2.50,
+          servings: params.servings,
+          tags: ["one-pot", "vegetarian", "quick"],
+          cookingDifficulty: "easy"
+        }
+      },
+      {
+        day: "Friday",
+        breakfast: params.includeBreakfast ? {
+          title: "Greek Yogurt Parfait",
+          description: "Layered yogurt parfait with granola and fresh fruit",
+          timings: { prep: 10, cook: 0, total: 10 },
+          estimatedCostPerServing: 2.00,
+          servings: params.servings,
+          tags: ["no-cook", "high-protein", "vegetarian"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        lunch: params.includeLunch ? {
+          title: "Leftover Pasta Frittata",
+          description: "Creative egg frittata using leftover pasta from Thursday",
+          timings: { prep: 10, cook: 15, total: 25 },
+          estimatedCostPerServing: 2.00,
+          servings: params.servings,
+          tags: ["leftovers", "high-protein", "vegetarian"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        dinner: {
+          title: "Homemade Pizza with Seasonal Toppings",
+          description: `Family-friendly pizza night with fresh ${season} toppings`,
+          timings: { prep: 30, cook: 15, total: 45 },
+          estimatedCostPerServing: 3.00,
+          servings: params.servings,
+          tags: ["family-favorite", "customizable", season],
+          cookingDifficulty: "medium"
+        }
+      },
+      {
+        day: "Saturday",
+        breakfast: params.includeBreakfast ? {
+          title: "Weekend Pancakes with Seasonal Fruit",
+          description: "Fluffy weekend pancakes topped with fresh seasonal fruit",
+          timings: { prep: 15, cook: 20, total: 35 },
+          estimatedCostPerServing: 1.75,
+          servings: params.servings,
+          tags: ["weekend-treat", "kid-friendly", "vegetarian"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        lunch: params.includeLunch ? {
+          title: "Hearty Vegetable Soup",
+          description: `Nutritious soup packed with ${season} vegetables`,
+          timings: { prep: 20, cook: 30, total: 50 },
+          estimatedCostPerServing: 2.25,
+          servings: params.servings * 2, // Make extra for freezing
+          tags: ["batch-cooking", "freezer-friendly", "vegetarian"],
+          cookingDifficulty: "medium"
+        } : undefined,
+        dinner: {
+          title: "Grilled Fish with Seasonal Vegetables",
+          description: `Light and healthy grilled fish with ${season} vegetable medley`,
+          timings: { prep: 15, cook: 15, total: 30 },
+          estimatedCostPerServing: 4.50,
+          servings: params.servings,
+          tags: ["high-protein", "low-carb", season],
+          cookingDifficulty: "medium"
+        }
+      },
+      {
+        day: "Sunday",
+        breakfast: params.includeBreakfast ? {
+          title: "Vegetable Frittata",
+          description: "Protein-rich egg frittata with seasonal vegetables",
+          timings: { prep: 15, cook: 20, total: 35 },
+          estimatedCostPerServing: 2.25,
+          servings: params.servings,
+          tags: ["high-protein", "vegetarian", "gluten-free"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        lunch: params.includeLunch ? {
+          title: "Leftover Soup with Crusty Bread",
+          description: "Enjoy leftover soup from Saturday with fresh bread",
+          timings: { prep: 5, cook: 10, total: 15 },
+          estimatedCostPerServing: 1.75,
+          servings: params.servings,
+          tags: ["leftovers", "quick", "vegetarian"],
+          cookingDifficulty: "easy"
+        } : undefined,
+        dinner: {
+          title: "Slow Cooker Roast with Seasonal Vegetables",
+          description: "Set-it-and-forget-it roast with root vegetables for Sunday dinner",
+          timings: { prep: 20, cook: 240, total: 260 },
+          estimatedCostPerServing: 4.25,
+          servings: params.servings * 1.5, // Make extra for Monday
+          tags: ["batch-cooking", "comfort-food", "high-protein"],
+          cookingDifficulty: "easy"
+        }
+      }
+    ],
+    totalCost: params.servings * 73.5, // Approximate weekly cost based on servings
+    nutritionSummary: {
+      averageDailyCalories: 2100,
+      proteinPercentage: 25,
+      carbsPercentage: 50,
+      fatPercentage: 25
+    },
+    shoppingTips: "Buy seasonal produce for the best flavor and value. Consider visiting a farmers market for the freshest options. Plan to shop once for the whole week, with a possible mid-week refresh for perishables. Group items by store section on your shopping list to save time.",
+    mealPrepTips: "On Sunday, prep breakfast items for the week (overnight oats, egg muffins). Chop vegetables and store in containers for quick cooking. Double weekend recipes to use leftovers creatively throughout the week. Batch cook components like grains and proteins to mix and match in different meals."
+  };
 }
