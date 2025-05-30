@@ -43,7 +43,9 @@ For local development without an API key, the application will fall back to mock
 
 ## Prompting Strategy
 
-Our application uses a specific prompting strategy to get consistent, structured recipe data from Claude:
+Our application uses specific prompting strategies to get consistent, structured data from Claude:
+
+### Single Recipe Generation
 
 1. We use a system prompt that instructs Claude to act as an expert chef specializing in seasonal, wholesome cooking for families.
 
@@ -66,6 +68,28 @@ Our application uses a specific prompting strategy to get consistent, structured
    - Step-by-step instructions
    - Nutritional information
    - Chef's tips
+
+### Weekly Meal Plan Generation
+
+1. We use a system prompt that instructs Claude to act as an expert meal planner specializing in seasonal, family-friendly cooking.
+
+2. The user prompt includes specific parameters:
+   - Dietary restrictions
+   - Servings needed
+   - Seasonal focus
+   - Weekly budget
+   - Need for quick meals
+   - Family-friendly requirements
+   - Preferred cuisines
+   - Meal types to include (breakfast, lunch, dinner)
+   - Meal prep preferences
+
+3. We request a response in strict JSON format with:
+   - A complete 7-day meal plan
+   - Recipes for each meal type on each day
+   - Cost estimates
+   - Nutrition summary
+   - Shopping and meal prep tips
 
 ## Handling API Limits and Errors
 
@@ -97,5 +121,7 @@ This will help manage costs and ensure we stay within our API limits.
 ## Related Files
 
 - `/lib/services/claudeService.ts` - Core service for API calls
-- `/app/api/recipes/generate/route.ts` - API endpoint that uses the service
-- `/app/recipe-generator/page.tsx` - Frontend component that calls the API
+- `/app/api/recipes/generate/route.ts` - API endpoint for single recipe generation
+- `/app/api/meal-plans/generate/route.ts` - API endpoint for weekly meal plan generation
+- `/app/recipe-generator/page.tsx` - Frontend component for single recipe generation
+- `/app/meal-plan-generator/page.tsx` - Frontend component for weekly meal plan generation

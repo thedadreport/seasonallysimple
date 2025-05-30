@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { generateWeeklyMealPlan, WeeklyMealPlanResponse, WeeklyMealPlanDay } from '@/lib/services/claudeService';
+import { WeeklyMealPlanResponse, WeeklyMealPlanDay } from '@/lib/services/claudeService';
 
 export default function MealPlanGeneratorPage() {
   const router = useRouter();
@@ -22,6 +22,7 @@ export default function MealPlanGeneratorPage() {
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [mealPlan, setMealPlan] = useState<WeeklyMealPlanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -87,34 +88,175 @@ export default function MealPlanGeneratorPage() {
     setError(null);
     
     try {
-      const result = await generateWeeklyMealPlan({
-        dietaryRestrictions: formData.dietaryRestrictions,
-        servings: formData.servings,
-        season: formData.season,
-        weeklyBudget: formData.weeklyBudget,
-        quickMealsNeeded: formData.quickMealsNeeded,
-        familyFriendly: formData.familyFriendly,
-        preferredCuisines: formData.preferredCuisines.length > 0 ? formData.preferredCuisines : undefined,
-        includeBreakfast: formData.includeBreakfast,
-        includeLunch: formData.includeLunch,
-        includeDinner: formData.includeDinner,
-        mealPrepFriendly: formData.mealPrepFriendly,
+      const response = await fetch('/api/meal-plans/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dietaryRestrictions: formData.dietaryRestrictions,
+          servings: formData.servings,
+          season: formData.season,
+          weeklyBudget: formData.weeklyBudget,
+          quickMealsNeeded: formData.quickMealsNeeded,
+          familyFriendly: formData.familyFriendly,
+          preferredCuisines: formData.preferredCuisines.length > 0 ? formData.preferredCuisines : undefined,
+          includeBreakfast: formData.includeBreakfast,
+          includeLunch: formData.includeLunch,
+          includeDinner: formData.includeDinner,
+          mealPrepFriendly: formData.mealPrepFriendly,
+        }),
       });
       
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate meal plan');
+      }
+      
+      const result = await response.json();
       setMealPlan(result);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('Error generating meal plan:', err);
-      setError('Failed to generate meal plan. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to generate meal plan. Please try again.');
     } finally {
       setIsGenerating(false);
     }
   };
   
-  const saveMealPlan = () => {
-    // In a real implementation, this would save the meal plan to the database
-    // and redirect to the meal plan page
-    router.push('/meal-plan');
+  const saveMealPlan = async () => {
+    if (!mealPlan) return;
+    
+    try {
+      setIsSaving(true); // Show saving state
+      
+      // Step 1: Collect all recipes from the meal plan
+      const allRecipes = [];
+      
+      for (const day of mealPlan.weeklyPlan) {
+        if (day.breakfast && formData.includeBreakfast) {
+          allRecipes.push(day.breakfast);
+        }
+        
+        if (day.lunch && formData.includeLunch) {
+          allRecipes.push(day.lunch);
+        }
+        
+        if (day.dinner && formData.includeDinner) {
+          allRecipes.push(day.dinner);
+        }
+      }
+      
+      // Step 2: Create recipes in the database
+      const createRecipesResponse = await fetch('/api/meal-plans/create-recipes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipes: allRecipes
+        }),
+      });
+      
+      if (!createRecipesResponse.ok) {
+        const errorData = await createRecipesResponse.json();
+        throw new Error(errorData.error || 'Failed to create recipes');
+      }
+      
+      // Get the created recipes with their database IDs
+      const { recipes: createdRecipes } = await createRecipesResponse.json();
+      
+      // Create a map for looking up recipe IDs by title
+      const recipeIdMap = new Map();
+      createdRecipes.forEach(recipe => {
+        recipeIdMap.set(recipe.originalId, recipe.id);
+      });
+      
+      // Step 3: Format the meal plan data
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 6); // Set end date to 7 days from now
+      
+      const formattedMeals = mealPlan.weeklyPlan.map((day, index) => {
+        // Calculate the date for this day
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + index);
+        
+        // Format meals for this day
+        const meals = [];
+        
+        if (day.breakfast && formData.includeBreakfast) {
+          const recipeId = recipeIdMap.get(day.breakfast.title);
+          if (recipeId) {
+            meals.push({
+              type: 'breakfast',
+              recipe: {
+                id: recipeId,
+                title: day.breakfast.title,
+              }
+            });
+          }
+        }
+        
+        if (day.lunch && formData.includeLunch) {
+          const recipeId = recipeIdMap.get(day.lunch.title);
+          if (recipeId) {
+            meals.push({
+              type: 'lunch',
+              recipe: {
+                id: recipeId,
+                title: day.lunch.title,
+              }
+            });
+          }
+        }
+        
+        if (day.dinner && formData.includeDinner) {
+          const recipeId = recipeIdMap.get(day.dinner.title);
+          if (recipeId) {
+            meals.push({
+              type: 'dinner',
+              recipe: {
+                id: recipeId,
+                title: day.dinner.title,
+              }
+            });
+          }
+        }
+        
+        return {
+          date: date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+          meals,
+        };
+      });
+      
+      // Step 4: Call the API to save the meal plan
+      const saveMealPlanResponse = await fetch('/api/meal-plans', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `${formData.season} Meal Plan (${startDate.toLocaleDateString()})`,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          meals: formattedMeals,
+        }),
+      });
+      
+      if (!saveMealPlanResponse.ok) {
+        const errorData = await saveMealPlanResponse.json();
+        throw new Error(errorData.error || 'Failed to save meal plan');
+      }
+      
+      // Step 5: Redirect to the meal plan page
+      router.push('/meal-plan');
+    } catch (error) {
+      console.error('Error saving meal plan:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save meal plan. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const getMealDifficultyColor = (difficulty: string) => {
@@ -153,10 +295,18 @@ export default function MealPlanGeneratorPage() {
                     Create New Plan
                   </button>
                   <button 
-                    onClick={saveMealPlan} 
+                    onClick={saveMealPlan}
+                    disabled={isSaving}
                     className="btn-primary"
                   >
-                    Save Plan
+                    {isSaving ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                        Saving...
+                      </div>
+                    ) : (
+                      'Save Plan'
+                    )}
                   </button>
                 </div>
               </div>
