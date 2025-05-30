@@ -1,0 +1,1065 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
+
+// Define types for recipe data
+type Ingredient = {
+  id?: string;
+  amount: string;
+  unit: string;
+  name: string;
+  _delete?: boolean;
+};
+
+type Instruction = {
+  id?: string;
+  stepNumber: number;
+  text: string;
+  _delete?: boolean;
+};
+
+type NutritionInfo = {
+  id?: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  sodium?: number;
+};
+
+type RecipeFormData = {
+  id: string;
+  title: string;
+  description: string;
+  timings: {
+    prep: number;
+    cook: number;
+    total: number;
+  };
+  ingredients: Ingredient[];
+  instructions: Instruction[];
+  nutritionInfo?: NutritionInfo;
+  difficulty: string;
+  season: string;
+  cuisineType: string;
+  dietaryTags: string[];
+  servings: number;
+  tips?: string;
+  imageUrl?: string;
+  isAIGenerated: boolean;
+  visibility: 'PRIVATE' | 'PUBLIC' | 'CURATED';
+};
+
+// Component for editing a recipe
+export default function EditRecipePage({ params }: { params: { id: string } }) {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const recipeId = params.id;
+  
+  // Initialize form state
+  const [formData, setFormData] = useState<RecipeFormData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  
+  // Available options for selects
+  const difficultyOptions = ['EASY', 'MEDIUM', 'HARD'];
+  const seasonOptions = ['ALL', 'SPRING', 'SUMMER', 'FALL', 'WINTER'];
+  const cuisineOptions = ['Mediterranean', 'Italian', 'French', 'American', 'Asian', 'Mexican', 'Indian', 'Other'];
+  const dietaryOptions = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'nut-free', 'low-carb', 'keto', 'paleo'];
+  
+  // Fetch recipe data
+  useEffect(() => {
+    const fetchRecipe = async () => {
+      try {
+        const response = await fetch(`/api/recipes/${recipeId}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch recipe');
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.data) {
+          throw new Error('Invalid response format');
+        }
+        
+        const recipe = data.data;
+        
+        // Transform the data to match our form structure
+        setFormData({
+          id: recipe.id,
+          title: recipe.title,
+          description: recipe.description,
+          timings: {
+            prep: recipe.prepTime || recipe.timings?.prep || 0,
+            cook: recipe.cookTime || recipe.timings?.cook || 0,
+            total: recipe.totalTime || recipe.timings?.total || 0,
+          },
+          ingredients: recipe.ingredients.map((ing: any) => ({
+            id: ing.id,
+            amount: ing.amount || '',
+            unit: ing.unit || '',
+            name: ing.name,
+          })),
+          instructions: recipe.instructions.map((ins: any) => ({
+            id: ins.id,
+            stepNumber: ins.stepNumber,
+            text: ins.text,
+          })),
+          nutritionInfo: recipe.nutritionInfo ? {
+            id: recipe.nutritionInfo.id,
+            calories: recipe.nutritionInfo.calories || 0,
+            protein: recipe.nutritionInfo.protein || 0,
+            carbs: recipe.nutritionInfo.carbs || 0,
+            fat: recipe.nutritionInfo.fat || 0,
+            fiber: recipe.nutritionInfo.fiber || 0,
+            sodium: recipe.nutritionInfo.sodium || 0,
+          } : undefined,
+          difficulty: recipe.difficulty || 'EASY',
+          season: recipe.season || 'ALL',
+          cuisineType: recipe.cuisineType || '',
+          dietaryTags: recipe.dietaryTags && typeof recipe.dietaryTags === 'string' 
+            ? recipe.dietaryTags.split(',').filter((tag: string) => tag.trim() !== '') 
+            : Array.isArray(recipe.dietaryTags) ? recipe.dietaryTags : [],
+          servings: recipe.servings || 4,
+          tips: recipe.tips || '',
+          imageUrl: recipe.imageUrl || '',
+          isAIGenerated: recipe.isAIGenerated || false,
+          visibility: recipe.visibility || 'PRIVATE',
+        });
+      } catch (err) {
+        console.error('Error fetching recipe:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load recipe. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchRecipe();
+  }, [recipeId]);
+  
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (!formData) return;
+    
+    const { name, value } = e.target;
+    
+    if (name.includes('.')) {
+      // Handle nested properties
+      const [parent, child] = name.split('.');
+      setFormData(prev => {
+        if (!prev) return prev;
+        
+        const parentKey = parent as keyof RecipeFormData;
+        const parentValue = prev[parentKey] || {};
+        
+        if (typeof parentValue !== 'object') {
+          console.error(`Expected ${parent} to be an object, but got ${typeof parentValue}`);
+          return prev;
+        }
+        
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: value,
+          },
+        };
+      });
+    } else {
+      // Handle top-level properties
+      setFormData(prev => prev ? {
+        ...prev,
+        [name]: value,
+      } : null);
+    }
+  };
+  
+  // Handle number input changes
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!formData) return;
+    
+    const { name, value } = e.target;
+    
+    if (name.includes('.')) {
+      // Handle nested properties
+      const [parent, child] = name.split('.');
+      setFormData(prev => {
+        if (!prev) return prev;
+        
+        const parentKey = parent as keyof RecipeFormData;
+        const parentValue = prev[parentKey] || {};
+        
+        if (typeof parentValue !== 'object') {
+          console.error(`Expected ${parent} to be an object, but got ${typeof parentValue}`);
+          return prev;
+        }
+        
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: parseInt(value) || 0,
+          },
+        };
+      });
+    } else {
+      // Handle top-level properties
+      setFormData(prev => prev ? {
+        ...prev,
+        [name]: parseInt(value) || 0,
+      } : null);
+    }
+  };
+  
+  // Handle dietary tags changes
+  const handleDietaryChange = (tag: string) => {
+    setFormData(prev => {
+      if (!prev) return prev;
+      
+      const currentTags = [...prev.dietaryTags];
+      
+      if (currentTags.includes(tag)) {
+        // Remove tag if already selected
+        return {
+          ...prev,
+          dietaryTags: currentTags.filter(t => t !== tag),
+        };
+      } else {
+        // Add tag if not selected
+        return {
+          ...prev,
+          dietaryTags: [...currentTags, tag],
+        };
+      }
+    });
+  };
+  
+  // Handle ingredient changes
+  const handleIngredientChange = (index: number, field: keyof Ingredient, value: string) => {
+    setFormData(prev => {
+      if (!prev) return prev;
+      
+      const updatedIngredients = [...prev.ingredients];
+      updatedIngredients[index] = {
+        ...updatedIngredients[index],
+        [field]: value,
+      };
+      return {
+        ...prev,
+        ingredients: updatedIngredients,
+      };
+    });
+  };
+  
+  // Add a new ingredient
+  const addIngredient = () => {
+    setFormData(prev => prev ? {
+      ...prev,
+      ingredients: [...prev.ingredients, { amount: '', unit: '', name: '' }],
+    } : null);
+  };
+  
+  // Remove an ingredient
+  const removeIngredient = (index: number) => {
+    if (!formData || formData.ingredients.length <= 1) return;
+    
+    // If the ingredient has an ID, mark it for deletion
+    if (formData.ingredients[index].id) {
+      setFormData(prev => {
+        if (!prev) return prev;
+        
+        const updatedIngredients = [...prev.ingredients];
+        updatedIngredients[index] = {
+          ...updatedIngredients[index],
+          _delete: true,
+        };
+        return {
+          ...prev,
+          ingredients: updatedIngredients,
+        };
+      });
+    } else {
+      // If it's a new ingredient, just remove it
+      setFormData(prev => prev ? {
+        ...prev,
+        ingredients: prev.ingredients.filter((_, i) => i !== index),
+      } : null);
+    }
+  };
+  
+  // Handle instruction changes
+  const handleInstructionChange = (index: number, field: keyof Instruction, value: any) => {
+    setFormData(prev => {
+      if (!prev) return prev;
+      
+      const updatedInstructions = [...prev.instructions];
+      updatedInstructions[index] = {
+        ...updatedInstructions[index],
+        [field]: field === 'stepNumber' ? parseInt(value) || 0 : value,
+      };
+      return {
+        ...prev,
+        instructions: updatedInstructions,
+      };
+    });
+  };
+  
+  // Add a new instruction
+  const addInstruction = () => {
+    setFormData(prev => {
+      if (!prev) return prev;
+      
+      const nextStepNumber = prev.instructions.length > 0 
+        ? Math.max(...prev.instructions.map(i => i.stepNumber)) + 1 
+        : 1;
+      
+      return {
+        ...prev,
+        instructions: [...prev.instructions, { stepNumber: nextStepNumber, text: '' }],
+      };
+    });
+  };
+  
+  // Remove an instruction
+  const removeInstruction = (index: number) => {
+    if (!formData || formData.instructions.length <= 1) return;
+    
+    // If the instruction has an ID, mark it for deletion
+    if (formData.instructions[index].id) {
+      setFormData(prev => {
+        if (!prev) return prev;
+        
+        const updatedInstructions = [...prev.instructions];
+        updatedInstructions[index] = {
+          ...updatedInstructions[index],
+          _delete: true,
+        };
+        return {
+          ...prev,
+          instructions: updatedInstructions,
+        };
+      });
+    } else {
+      // If it's a new instruction, just remove it
+      setFormData(prev => prev ? {
+        ...prev,
+        instructions: prev.instructions.filter((_, i) => i !== index),
+      } : null);
+    }
+  };
+  
+  // Handle nutrition info changes
+  const handleNutritionChange = (field: keyof NutritionInfo, value: string) => {
+    setFormData(prev => {
+      if (!prev) return prev;
+      
+      return {
+        ...prev,
+        nutritionInfo: {
+          ...prev.nutritionInfo,
+          [field]: parseFloat(value) || 0,
+        } as NutritionInfo,
+      };
+    });
+  };
+  
+  // Calculate total time when prep or cook time changes
+  const updateTotalTime = () => {
+    setFormData(prev => {
+      if (!prev) return prev;
+      
+      return {
+        ...prev,
+        timings: {
+          ...prev.timings,
+          total: prev.timings.prep + prev.timings.cook,
+        },
+      };
+    });
+  };
+  
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData) return;
+    
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      // Create recipe object from form data, filtering out deleted items
+      const recipeData = {
+        ...formData,
+        dietaryTags: formData.dietaryTags.join(','),
+        ingredients: formData.ingredients.filter(ing => !ing._delete),
+        instructions: formData.instructions.filter(ins => !ins._delete),
+      };
+      
+      // Send API request to update recipe
+      const response = await fetch(`/api/recipes/${recipeId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(recipeData),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to update recipe');
+      }
+      
+      setSuccess('Recipe updated successfully!');
+      
+      // Redirect to the recipe page
+      setTimeout(() => {
+        router.push(`/recipes/${recipeId}`);
+      }, 1500);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  // Check if user is authenticated
+  if (!session) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-serif font-semibold mb-4">Please Sign In</h2>
+          <p className="mb-6">You need to be logged in to edit recipes.</p>
+          <Link href="/login" className="btn-primary">
+            Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-3/4 mb-6"></div>
+          <div className="h-4 bg-gray-200 rounded w-full mb-8"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <div className="h-6 bg-gray-200 rounded w-1/2 mb-4"></div>
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              </div>
+            </div>
+            <div>
+              <div className="h-6 bg-gray-200 rounded w-1/2 mb-4"></div>
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show error if recipe failed to load
+  if (!formData) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-serif font-semibold mb-4">Error Loading Recipe</h2>
+          <p className="mb-6 text-red-600">{error || 'Failed to load recipe'}</p>
+          <Link href="/recipes/my" className="btn-primary">
+            Back to My Recipes
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show the form when recipe is loaded
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <h1 className="text-3xl md:text-4xl font-serif font-bold text-navy mb-8">
+        Edit Recipe
+      </h1>
+      
+      {error && (
+        <div className="bg-red-50 text-red-700 p-4 rounded-md mb-6">
+          {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="bg-green-50 text-green-700 p-4 rounded-md mb-6">
+          {success}
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Basic Info Section */}
+        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+          <h2 className="text-xl font-serif font-semibold mb-4">Basic Information</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="col-span-2">
+              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                Recipe Title*
+              </label>
+              <input
+                type="text"
+                id="title"
+                name="title"
+                value={formData.title}
+                onChange={handleInputChange}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="Enter recipe title"
+              />
+            </div>
+            
+            <div className="col-span-2">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                Description*
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                required
+                rows={3}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="Brief description of the recipe"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="difficulty" className="block text-sm font-medium text-gray-700 mb-1">
+                Difficulty*
+              </label>
+              <select
+                id="difficulty"
+                name="difficulty"
+                value={formData.difficulty}
+                onChange={handleInputChange}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                {difficultyOptions.map(option => (
+                  <option key={option} value={option}>
+                    {option.charAt(0) + option.slice(1).toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="season" className="block text-sm font-medium text-gray-700 mb-1">
+                Season*
+              </label>
+              <select
+                id="season"
+                name="season"
+                value={formData.season}
+                onChange={handleInputChange}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                {seasonOptions.map(option => (
+                  <option key={option} value={option}>
+                    {option.charAt(0) + option.slice(1).toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="cuisineType" className="block text-sm font-medium text-gray-700 mb-1">
+                Cuisine Type*
+              </label>
+              <select
+                id="cuisineType"
+                name="cuisineType"
+                value={formData.cuisineType}
+                onChange={handleInputChange}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                <option value="">Select cuisine</option>
+                {cuisineOptions.map(option => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="servings" className="block text-sm font-medium text-gray-700 mb-1">
+                Servings*
+              </label>
+              <input
+                type="number"
+                id="servings"
+                name="servings"
+                min="1"
+                value={formData.servings}
+                onChange={handleNumberChange}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Dietary Tags
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {dietaryOptions.map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => handleDietaryChange(tag)}
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    formData.dietaryTags.includes(tag)
+                      ? 'bg-sage text-white'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+        
+        {/* Timing Section */}
+        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+          <h2 className="text-xl font-serif font-semibold mb-4">Timing</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label htmlFor="timings.prep" className="block text-sm font-medium text-gray-700 mb-1">
+                Prep Time (minutes)*
+              </label>
+              <input
+                type="number"
+                id="timings.prep"
+                name="timings.prep"
+                min="0"
+                value={formData.timings.prep}
+                onChange={handleNumberChange}
+                onBlur={updateTotalTime}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="timings.cook" className="block text-sm font-medium text-gray-700 mb-1">
+                Cook Time (minutes)*
+              </label>
+              <input
+                type="number"
+                id="timings.cook"
+                name="timings.cook"
+                min="0"
+                value={formData.timings.cook}
+                onChange={handleNumberChange}
+                onBlur={updateTotalTime}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="timings.total" className="block text-sm font-medium text-gray-700 mb-1">
+                Total Time (minutes)
+              </label>
+              <input
+                type="number"
+                id="timings.total"
+                name="timings.total"
+                value={formData.timings.total}
+                readOnly
+                className="w-full p-2 border border-gray-200 bg-gray-50 rounded-md"
+              />
+            </div>
+          </div>
+        </section>
+        
+        {/* Ingredients Section */}
+        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+          <h2 className="text-xl font-serif font-semibold mb-4">Ingredients</h2>
+          
+          {formData.ingredients.filter(ing => !ing._delete).map((ingredient, index) => (
+            <div key={index} className="grid grid-cols-12 gap-4 mb-4">
+              <div className="col-span-2">
+                <label className={index === 0 ? "block text-sm font-medium text-gray-700 mb-1" : "sr-only"}>
+                  Amount*
+                </label>
+                <input
+                  type="text"
+                  value={ingredient.amount}
+                  onChange={(e) => handleIngredientChange(index, 'amount', e.target.value)}
+                  required
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="1/2"
+                />
+              </div>
+              
+              <div className="col-span-2">
+                <label className={index === 0 ? "block text-sm font-medium text-gray-700 mb-1" : "sr-only"}>
+                  Unit
+                </label>
+                <input
+                  type="text"
+                  value={ingredient.unit}
+                  onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="cup"
+                />
+              </div>
+              
+              <div className="col-span-7">
+                <label className={index === 0 ? "block text-sm font-medium text-gray-700 mb-1" : "sr-only"}>
+                  Ingredient*
+                </label>
+                <input
+                  type="text"
+                  value={ingredient.name}
+                  onChange={(e) => handleIngredientChange(index, 'name', e.target.value)}
+                  required
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="flour"
+                />
+              </div>
+              
+              <div className="col-span-1 flex items-end">
+                <button
+                  type="button"
+                  onClick={() => removeIngredient(index)}
+                  className="p-2 text-red-600 hover:text-red-800"
+                  disabled={formData.ingredients.filter(ing => !ing._delete).length <= 1}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+          
+          <button
+            type="button"
+            onClick={addIngredient}
+            className="mt-2 text-sage hover:text-sage-dark font-medium"
+          >
+            + Add Ingredient
+          </button>
+        </section>
+        
+        {/* Instructions Section */}
+        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+          <h2 className="text-xl font-serif font-semibold mb-4">Instructions</h2>
+          
+          {formData.instructions.filter(ins => !ins._delete).map((instruction, index) => (
+            <div key={index} className="grid grid-cols-12 gap-4 mb-4">
+              <div className="col-span-1">
+                <label className={index === 0 ? "block text-sm font-medium text-gray-700 mb-1" : "sr-only"}>
+                  Step
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={instruction.stepNumber}
+                  onChange={(e) => handleInstructionChange(index, 'stepNumber', e.target.value)}
+                  required
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              
+              <div className="col-span-10">
+                <label className={index === 0 ? "block text-sm font-medium text-gray-700 mb-1" : "sr-only"}>
+                  Instruction*
+                </label>
+                <input
+                  type="text"
+                  value={instruction.text}
+                  onChange={(e) => handleInstructionChange(index, 'text', e.target.value)}
+                  required
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Mix all ingredients in a bowl"
+                />
+              </div>
+              
+              <div className="col-span-1 flex items-end">
+                <button
+                  type="button"
+                  onClick={() => removeInstruction(index)}
+                  className="p-2 text-red-600 hover:text-red-800"
+                  disabled={formData.instructions.filter(ins => !ins._delete).length <= 1}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+          
+          <button
+            type="button"
+            onClick={addInstruction}
+            className="mt-2 text-sage hover:text-sage-dark font-medium"
+          >
+            + Add Instruction
+          </button>
+        </section>
+        
+        {/* Nutrition Section (Optional) */}
+        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+          <h2 className="text-xl font-serif font-semibold mb-4">Nutrition Information (Optional)</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label htmlFor="calories" className="block text-sm font-medium text-gray-700 mb-1">
+                Calories
+              </label>
+              <input
+                type="number"
+                id="calories"
+                min="0"
+                value={formData.nutritionInfo?.calories || ''}
+                onChange={(e) => handleNutritionChange('calories', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="protein" className="block text-sm font-medium text-gray-700 mb-1">
+                Protein (g)
+              </label>
+              <input
+                type="number"
+                id="protein"
+                min="0"
+                step="0.1"
+                value={formData.nutritionInfo?.protein || ''}
+                onChange={(e) => handleNutritionChange('protein', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="carbs" className="block text-sm font-medium text-gray-700 mb-1">
+                Carbs (g)
+              </label>
+              <input
+                type="number"
+                id="carbs"
+                min="0"
+                step="0.1"
+                value={formData.nutritionInfo?.carbs || ''}
+                onChange={(e) => handleNutritionChange('carbs', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="fat" className="block text-sm font-medium text-gray-700 mb-1">
+                Fat (g)
+              </label>
+              <input
+                type="number"
+                id="fat"
+                min="0"
+                step="0.1"
+                value={formData.nutritionInfo?.fat || ''}
+                onChange={(e) => handleNutritionChange('fat', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="fiber" className="block text-sm font-medium text-gray-700 mb-1">
+                Fiber (g)
+              </label>
+              <input
+                type="number"
+                id="fiber"
+                min="0"
+                step="0.1"
+                value={formData.nutritionInfo?.fiber || ''}
+                onChange={(e) => handleNutritionChange('fiber', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="sodium" className="block text-sm font-medium text-gray-700 mb-1">
+                Sodium (mg)
+              </label>
+              <input
+                type="number"
+                id="sodium"
+                min="0"
+                step="1"
+                value={formData.nutritionInfo?.sodium || ''}
+                onChange={(e) => handleNutritionChange('sodium', e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+            </div>
+          </div>
+        </section>
+        
+        {/* Additional Info Section */}
+        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+          <h2 className="text-xl font-serif font-semibold mb-4">Additional Information</h2>
+          
+          <div className="grid grid-cols-1 gap-6">
+            <div>
+              <label htmlFor="tips" className="block text-sm font-medium text-gray-700 mb-1">
+                Tips & Notes
+              </label>
+              <textarea
+                id="tips"
+                name="tips"
+                value={formData.tips || ''}
+                onChange={handleInputChange}
+                rows={3}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="Any tips or additional notes for making this recipe"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                Image URL
+              </label>
+              <input
+                type="url"
+                id="imageUrl"
+                name="imageUrl"
+                value={formData.imageUrl || ''}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
+            
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isAIGenerated"
+                name="isAIGenerated"
+                checked={formData.isAIGenerated}
+                onChange={(e) => 
+                  setFormData(prev => prev ? {
+                    ...prev,
+                    isAIGenerated: e.target.checked,
+                  } : null)
+                }
+                className="h-4 w-4 text-sage focus:ring-sage border-gray-300 rounded"
+              />
+              <label htmlFor="isAIGenerated" className="ml-2 block text-sm text-gray-700">
+                This recipe was generated with AI assistance
+              </label>
+            </div>
+            
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <h3 className="text-md font-medium text-gray-700 mb-3">Recipe Visibility</h3>
+              
+              <div className="mb-4">
+                <div className="flex items-center mb-2">
+                  <input
+                    type="radio"
+                    id="visibility-private"
+                    name="visibility"
+                    value="PRIVATE"
+                    checked={formData.visibility === 'PRIVATE'}
+                    onChange={(e) => 
+                      setFormData(prev => prev ? {
+                        ...prev,
+                        visibility: 'PRIVATE',
+                      } : null)
+                    }
+                    className="h-4 w-4 text-sage focus:ring-sage border-gray-300"
+                  />
+                  <label htmlFor="visibility-private" className="ml-2 block text-sm text-gray-700">
+                    Private (Only visible to you)
+                  </label>
+                </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id="visibility-public"
+                    name="visibility"
+                    value="PUBLIC"
+                    checked={formData.visibility === 'PUBLIC'}
+                    onChange={(e) => 
+                      setFormData(prev => prev ? {
+                        ...prev,
+                        visibility: 'PUBLIC',
+                      } : null)
+                    }
+                    className="h-4 w-4 text-sage focus:ring-sage border-gray-300"
+                  />
+                  <label htmlFor="visibility-public" className="ml-2 block text-sm text-gray-700">
+                    Public (Will be submitted for moderation)
+                  </label>
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 p-3 rounded-md text-sm text-blue-800">
+                <p className="font-medium mb-1">Privacy Notice:</p>
+                <p className="mb-2">
+                  Changing visibility to Public will submit the recipe for moderation before it's published.
+                </p>
+                <p>
+                  Making significant changes to a published recipe may trigger a new moderation review.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        {/* Submit Button */}
+        <div className="flex justify-between">
+          <Link href={`/recipes/${recipeId}`} className="btn-secondary">
+            Cancel
+          </Link>
+          
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

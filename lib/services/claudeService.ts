@@ -66,6 +66,24 @@ export type MealPlanRecipe = {
   servings: number;
   tags: string[];
   cookingDifficulty: string;
+  ingredients?: {
+    amount: string;
+    unit: string;
+    name: string;
+  }[];
+  instructions?: {
+    stepNumber: number;
+    text: string;
+  }[];
+  nutritionInfo?: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber?: number;
+    sodium?: number;
+  };
+  tips?: string;
 };
 
 export type WeeklyMealPlanDay = {
@@ -432,7 +450,7 @@ export async function generateWeeklyMealPlan(params: WeeklyMealPlanParams): Prom
 You create balanced, practical weekly meal plans that use ingredients at their peak freshness while accommodating dietary needs and budget constraints. 
 Your meal plans are well-structured, consider leftovers and meal prep opportunities, and aim to reduce food waste.`;
   
-  const userPrompt = `Create a complete 7-day meal plan that meets these requirements:
+  const userPrompt = `Create a complete 7-day meal plan with FULL RECIPES that meets these requirements:
   
 DIETARY NEEDS: ${dietaryRestrictions}
 SERVINGS NEEDED: ${params.servings}
@@ -444,7 +462,7 @@ PREFERRED CUISINES: ${preferredCuisines}
 MEAL TYPES: ${mealTypes.join(', ')}
 ${params.mealPrepFriendly ? 'MEAL PREP FRIENDLY: Yes, include batch cooking opportunities' : ''}
 
-IMPORTANT: Return your response in a strict JSON format with the following fields:
+IMPORTANT: Create COMPLETE recipes with ingredients, instructions, and nutritional information. Return your response in a strict JSON format with the following fields:
 {
   "weeklyPlan": [
     {
@@ -460,7 +478,29 @@ IMPORTANT: Return your response in a strict JSON format with the following field
         "estimatedCostPerServing": 2.50,
         "servings": 4,
         "tags": ["quick", "vegetarian"],
-        "cookingDifficulty": "easy"
+        "cookingDifficulty": "easy",
+        "ingredients": [
+          {
+            "amount": "1.5",
+            "unit": "cups",
+            "name": "ingredient name"
+          }
+        ],
+        "instructions": [
+          {
+            "stepNumber": 1,
+            "text": "First step instructions"
+          }
+        ],
+        "nutritionInfo": {
+          "calories": 320,
+          "protein": 12,
+          "carbs": 45,
+          "fat": 8,
+          "fiber": 6,
+          "sodium": 200
+        },
+        "tips": "Optional preparation or serving tips"
       },` : ''}
       ${params.includeLunch ? `"lunch": {
         "title": "Recipe Title",
@@ -473,7 +513,29 @@ IMPORTANT: Return your response in a strict JSON format with the following field
         "estimatedCostPerServing": 3.25,
         "servings": 4,
         "tags": ["make-ahead", "protein-rich"],
-        "cookingDifficulty": "easy"
+        "cookingDifficulty": "easy",
+        "ingredients": [
+          {
+            "amount": "1.5",
+            "unit": "cups",
+            "name": "ingredient name"
+          }
+        ],
+        "instructions": [
+          {
+            "stepNumber": 1,
+            "text": "First step instructions"
+          }
+        ],
+        "nutritionInfo": {
+          "calories": 320,
+          "protein": 12,
+          "carbs": 45,
+          "fat": 8,
+          "fiber": 6,
+          "sodium": 200
+        },
+        "tips": "Optional preparation or serving tips"
       },` : ''}
       "dinner": {
         "title": "Recipe Title",
@@ -486,7 +548,29 @@ IMPORTANT: Return your response in a strict JSON format with the following field
         "estimatedCostPerServing": 4.75,
         "servings": 4,
         "tags": ["seasonal", "family-friendly"],
-        "cookingDifficulty": "medium"
+        "cookingDifficulty": "medium",
+        "ingredients": [
+          {
+            "amount": "1.5",
+            "unit": "cups",
+            "name": "ingredient name"
+          }
+        ],
+        "instructions": [
+          {
+            "stepNumber": 1,
+            "text": "First step instructions"
+          }
+        ],
+        "nutritionInfo": {
+          "calories": 320,
+          "protein": 12,
+          "carbs": 45,
+          "fat": 8,
+          "fiber": 6,
+          "sodium": 200
+        },
+        "tips": "Optional preparation or serving tips"
       }
     }
     // Repeat for all 7 days

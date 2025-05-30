@@ -79,8 +79,10 @@ export async function POST(request: NextRequest) {
           ) || '',
           dietaryTags: recipe.tags?.join(',') || '',
           visibility: 'PUBLIC', // Make them public so they can be found by other users
+          moderationStatus: 'APPROVED', // Auto-approve AI-generated recipes
           isAIGenerated: true,
           createdById: userId,
+          publishedAt: new Date(), // Set publication date so they appear in search
           // Add estimated cost if available
           ...(recipe.estimatedCostPerServing ? {
             tips: `Estimated cost per serving: $${recipe.estimatedCostPerServing.toFixed(2)}. ${recipe.tips || ''}`

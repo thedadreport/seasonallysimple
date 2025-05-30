@@ -597,6 +597,15 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
                 </div>
               )}
               
+              {recipe.isOwner && (
+                <Link 
+                  href={`/recipes/edit/${recipe.id}`}
+                  className="text-sm px-2 py-1 rounded-full border border-sage text-sage bg-white hover:bg-sage hover:text-white transition-colors"
+                >
+                  Edit Recipe
+                </Link>
+              )}
+              
               {recipe.moderationStatus === 'REJECTED' && (
                 <div className="text-sm px-2 py-1 rounded-full border border-red-400 text-red-600 bg-red-50">
                   Rejected

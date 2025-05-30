@@ -130,19 +130,31 @@ export default function MealPlanGeneratorPage() {
     try {
       setIsSaving(true); // Show saving state
       
-      // Step 1: Collect all recipes from the meal plan
+      // Step 1: Collect all recipes from the meal plan with full details
       const allRecipes = [];
       
       for (const day of mealPlan.weeklyPlan) {
         if (day.breakfast && formData.includeBreakfast) {
+          // Make sure the recipe is complete
+          if (!day.breakfast.ingredients || !day.breakfast.instructions) {
+            console.warn(`Missing details for ${day.breakfast.title}`);
+          }
           allRecipes.push(day.breakfast);
         }
         
         if (day.lunch && formData.includeLunch) {
+          // Make sure the recipe is complete
+          if (!day.lunch.ingredients || !day.lunch.instructions) {
+            console.warn(`Missing details for ${day.lunch.title}`);
+          }
           allRecipes.push(day.lunch);
         }
         
         if (day.dinner && formData.includeDinner) {
+          // Make sure the recipe is complete
+          if (!day.dinner.ingredients || !day.dinner.instructions) {
+            console.warn(`Missing details for ${day.dinner.title}`);
+          }
           allRecipes.push(day.dinner);
         }
       }
