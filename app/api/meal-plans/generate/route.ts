@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateWeeklyMealPlan } from '@/lib/services/claudeService';
+import prisma from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
