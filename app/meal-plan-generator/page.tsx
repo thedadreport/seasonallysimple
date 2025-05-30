@@ -167,8 +167,8 @@ export default function MealPlanGeneratorPage() {
       const { recipes: createdRecipes } = await createRecipesResponse.json();
       
       // Create a map for looking up recipe IDs by title
-      const recipeIdMap = new Map();
-      createdRecipes.forEach(recipe => {
+      const recipeIdMap = new Map<string, string>();
+      createdRecipes.forEach((recipe: {id: string, originalId: string}) => {
         recipeIdMap.set(recipe.originalId, recipe.id);
       });
       
