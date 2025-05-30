@@ -157,15 +157,45 @@ export async function GET(request: Request) {
         cook: recipe.cookTime,
         total: recipe.totalTime,
       },
+      // For meal planning, we need prepTime, cookTime, and totalTime in this format too
+      prepTime: recipe.prepTime,
+      cookTime: recipe.cookTime,
+      totalTime: recipe.totalTime,
       difficulty: recipe.difficulty,
       season: recipe.season,
       cuisineType: recipe.cuisineType,
-      dietaryTags: recipe.dietaryTags ? recipe.dietaryTags.split(',') : [],
+      dietaryTags: recipe.dietaryTags ? recipe.dietaryTags.split(',').filter(tag => tag.trim() !== '') : [],
       servings: recipe.servings,
       isAIGenerated: recipe.isAIGenerated,
       imageUrl: recipe.imageUrl,
       createdAt: recipe.createdAt,
       updatedAt: recipe.updatedAt,
+      // Add estimated cost per serving for meal planning
+      estimatedCostPerServing: 3.75, // Default placeholder value
+      
+      // Include ingredients and instructions data
+      ingredients: recipe.Ingredient.map(ing => ({
+        amount: ing.amount,
+        unit: ing.unit || '',
+        name: ing.name
+      })),
+      instructions: recipe.Instruction.map(ins => ({
+        stepNumber: ins.stepNumber,
+        text: ins.text
+      })),
+      
+      // Include nutrition info if available
+      nutritionInfo: recipe.NutritionInfo ? {
+        calories: recipe.NutritionInfo.calories,
+        protein: recipe.NutritionInfo.protein,
+        carbs: recipe.NutritionInfo.carbs,
+        fat: recipe.NutritionInfo.fat,
+        fiber: recipe.NutritionInfo.fiber || 0,
+        sodium: recipe.NutritionInfo.sodium || 0
+      } : undefined,
+      
+      // Add tips field
+      tips: recipe.tips || '',
       
       // Add privacy and moderation fields
       visibility: recipe.visibility,

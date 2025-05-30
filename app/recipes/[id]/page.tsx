@@ -224,10 +224,66 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
         const data = await response.json();
         
         if (data.success && data.data) {
+          // Normalize the recipe data to handle possible inconsistencies
           const recipeData = data.data;
-          setRecipe(recipeData);
-          setServings(recipeData.servings);
-          setUserNotes(recipeData.userNotes || '');
+          
+          // Ensure all required properties exist and have valid values
+          const normalizedRecipe = {
+            ...recipeData,
+            
+            // Ensure dietary tags is an array
+            dietaryTags: Array.isArray(recipeData.dietaryTags) 
+              ? recipeData.dietaryTags 
+              : (typeof recipeData.dietaryTags === 'string' 
+                ? recipeData.dietaryTags.split(',').filter(Boolean) 
+                : []),
+            
+            // Ensure timings exist
+            timings: recipeData.timings || {
+              prep: recipeData.prepTime || 0,
+              cook: recipeData.cookTime || 0,
+              total: recipeData.totalTime || 0,
+            },
+            
+            // Ensure ingredients exists and is array
+            ingredients: Array.isArray(recipeData.ingredients) 
+              ? recipeData.ingredients 
+              : [],
+              
+            // Ensure instructions exists and is array
+            instructions: Array.isArray(recipeData.instructions) 
+              ? recipeData.instructions 
+              : [],
+              
+            // Ensure nutritionInfo exists or is undefined
+            nutritionInfo: recipeData.nutritionInfo 
+              ? {
+                calories: recipeData.nutritionInfo.calories || 0,
+                protein: recipeData.nutritionInfo.protein || 0,
+                carbs: recipeData.nutritionInfo.carbs || 0,
+                fat: recipeData.nutritionInfo.fat || 0,
+                fiber: recipeData.nutritionInfo.fiber || 0,
+                sodium: recipeData.nutritionInfo.sodium || 0,
+              } 
+              : undefined,
+              
+            // Ensure visibility is a valid enum value
+            visibility: recipeData.visibility || 'PRIVATE',
+            
+            // Ensure moderationStatus is a valid enum value  
+            moderationStatus: recipeData.moderationStatus || 'PENDING',
+            
+            // Ensure other properties have defaults
+            tips: recipeData.tips || '',
+            servings: recipeData.servings || 4,
+            isAIGenerated: !!recipeData.isAIGenerated,
+            isOwner: !!recipeData.isOwner,
+            userNotes: recipeData.userNotes || '',
+          };
+          
+          setRecipe(normalizedRecipe);
+          setServings(normalizedRecipe.servings);
+          setUserNotes(normalizedRecipe.userNotes);
           
           // For now, we'll use mock comments
           // In the future, we would fetch comments from a separate API endpoint
@@ -682,32 +738,38 @@ export default function RecipeDetail({ params }: { params: { id: string } }) {
         <div>
           <h2 className="text-2xl font-serif font-semibold text-sage mb-4">Nutrition (per serving)</h2>
           
-          <div className="bg-white shadow-sm rounded-lg p-4 mb-8">
-            <div className="flex justify-between border-b border-gray-100 py-2">
-              <span>Calories</span>
-              <span className="font-semibold">{recipe.nutritionInfo.calories}</span>
+          {recipe.nutritionInfo ? (
+            <div className="bg-white shadow-sm rounded-lg p-4 mb-8">
+              <div className="flex justify-between border-b border-gray-100 py-2">
+                <span>Calories</span>
+                <span className="font-semibold">{recipe.nutritionInfo.calories}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-100 py-2">
+                <span>Protein</span>
+                <span className="font-semibold">{recipe.nutritionInfo.protein}g</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-100 py-2">
+                <span>Carbs</span>
+                <span className="font-semibold">{recipe.nutritionInfo.carbs}g</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-100 py-2">
+                <span>Fat</span>
+                <span className="font-semibold">{recipe.nutritionInfo.fat}g</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-100 py-2">
+                <span>Fiber</span>
+                <span className="font-semibold">{recipe.nutritionInfo.fiber}g</span>
+              </div>
+              <div className="flex justify-between py-2">
+                <span>Sodium</span>
+                <span className="font-semibold">{recipe.nutritionInfo.sodium}mg</span>
+              </div>
             </div>
-            <div className="flex justify-between border-b border-gray-100 py-2">
-              <span>Protein</span>
-              <span className="font-semibold">{recipe.nutritionInfo.protein}g</span>
+          ) : (
+            <div className="bg-white shadow-sm rounded-lg p-4 mb-8 text-center text-gray-500">
+              <p>Nutrition information not available for this recipe.</p>
             </div>
-            <div className="flex justify-between border-b border-gray-100 py-2">
-              <span>Carbs</span>
-              <span className="font-semibold">{recipe.nutritionInfo.carbs}g</span>
-            </div>
-            <div className="flex justify-between border-b border-gray-100 py-2">
-              <span>Fat</span>
-              <span className="font-semibold">{recipe.nutritionInfo.fat}g</span>
-            </div>
-            <div className="flex justify-between border-b border-gray-100 py-2">
-              <span>Fiber</span>
-              <span className="font-semibold">{recipe.nutritionInfo.fiber}g</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span>Sodium</span>
-              <span className="font-semibold">{recipe.nutritionInfo.sodium}mg</span>
-            </div>
-          </div>
+          )}
           
           {recipe.dietaryTags && recipe.dietaryTags.length > 0 && (
             <div className="mb-8">
