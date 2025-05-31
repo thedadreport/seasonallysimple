@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 
+// Force dynamic rendering to avoid static errors
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 
 export async function POST(request: Request) {

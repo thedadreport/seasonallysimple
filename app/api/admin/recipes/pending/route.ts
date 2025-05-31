@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 
+// Force dynamic rendering to avoid static errors with request.url
+export const dynamic = 'force-dynamic';
+
 // GET handler to retrieve recipes pending moderation
 export async function GET(request: Request) {
   try {

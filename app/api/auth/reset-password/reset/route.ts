@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
+// Force dynamic rendering to avoid static errors
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;
 

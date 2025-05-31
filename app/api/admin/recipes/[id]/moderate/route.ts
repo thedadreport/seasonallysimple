@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 
+// Force dynamic rendering to avoid static errors
+export const dynamic = 'force-dynamic';
+
 // Validation schema for moderation
 const moderationSchema = z.object({
   moderationStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'FLAGGED']),
