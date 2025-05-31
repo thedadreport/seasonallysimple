@@ -88,6 +88,13 @@ export default function MealPlanGeneratorPage() {
     setError(null);
     
     try {
+      console.log('Generating meal plan with parameters:', {
+        dietaryRestrictions: formData.dietaryRestrictions,
+        servings: formData.servings,
+        season: formData.season,
+        // Other parameters omitted for brevity
+      });
+      
       const response = await fetch('/api/meal-plans/generate', {
         method: 'POST',
         headers: {
@@ -108,12 +115,47 @@ export default function MealPlanGeneratorPage() {
         }),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate meal plan');
+      // Get the response text first to handle potential non-JSON responses
+      const responseText = await response.text();
+      let result;
+      
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse meal plan generation response:', responseText);
+        throw new Error(`Invalid response from server: ${responseText.substring(0, 100)}...`);
       }
       
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to generate meal plan');
+      }
+      
+      console.log('Successfully generated meal plan with', result.weeklyPlan.length, 'days');
+      
+      // Validate meal plan structure
+      if (!result.weeklyPlan || !Array.isArray(result.weeklyPlan) || result.weeklyPlan.length === 0) {
+        throw new Error('Generated meal plan is empty or invalid');
+      }
+      
+      // Fill in missing fields to prevent errors in the UI
+      result.weeklyPlan.forEach((day: any) => {
+        if (day.breakfast) {
+          day.breakfast.ingredients = day.breakfast.ingredients || [];
+          day.breakfast.instructions = day.breakfast.instructions || [];
+          day.breakfast.tags = day.breakfast.tags || [];
+        }
+        if (day.lunch) {
+          day.lunch.ingredients = day.lunch.ingredients || [];
+          day.lunch.instructions = day.lunch.instructions || [];
+          day.lunch.tags = day.lunch.tags || [];
+        }
+        if (day.dinner) {
+          day.dinner.ingredients = day.dinner.ingredients || [];
+          day.dinner.instructions = day.dinner.instructions || [];
+          day.dinner.tags = day.dinner.tags || [];
+        }
+      });
+      
       setMealPlan(result);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
@@ -129,15 +171,21 @@ export default function MealPlanGeneratorPage() {
     
     try {
       setIsSaving(true); // Show saving state
+      setError(null); // Clear any previous errors
       
       // Step 1: Collect all recipes from the meal plan with full details
       const allRecipes = [];
+      let missingDetails = false;
       
       for (const day of mealPlan.weeklyPlan) {
         if (day.breakfast && formData.includeBreakfast) {
           // Make sure the recipe is complete
           if (!day.breakfast.ingredients || !day.breakfast.instructions) {
             console.warn(`Missing details for ${day.breakfast.title}`);
+            missingDetails = true;
+            // Add empty arrays to prevent errors
+            day.breakfast.ingredients = day.breakfast.ingredients || [];
+            day.breakfast.instructions = day.breakfast.instructions || [];
           }
           allRecipes.push(day.breakfast);
         }
@@ -146,6 +194,10 @@ export default function MealPlanGeneratorPage() {
           // Make sure the recipe is complete
           if (!day.lunch.ingredients || !day.lunch.instructions) {
             console.warn(`Missing details for ${day.lunch.title}`);
+            missingDetails = true;
+            // Add empty arrays to prevent errors
+            day.lunch.ingredients = day.lunch.ingredients || [];
+            day.lunch.instructions = day.lunch.instructions || [];
           }
           allRecipes.push(day.lunch);
         }
@@ -154,115 +206,158 @@ export default function MealPlanGeneratorPage() {
           // Make sure the recipe is complete
           if (!day.dinner.ingredients || !day.dinner.instructions) {
             console.warn(`Missing details for ${day.dinner.title}`);
+            missingDetails = true;
+            // Add empty arrays to prevent errors
+            day.dinner.ingredients = day.dinner.ingredients || [];
+            day.dinner.instructions = day.dinner.instructions || [];
           }
           allRecipes.push(day.dinner);
         }
       }
       
+      if (missingDetails) {
+        console.warn("Some recipes have missing details. Using empty arrays where needed.");
+      }
+      
+      console.log(`Creating ${allRecipes.length} recipes...`);
+      
       // Step 2: Create recipes in the database
-      const createRecipesResponse = await fetch('/api/meal-plans/create-recipes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          recipes: allRecipes
-        }),
-      });
-      
-      if (!createRecipesResponse.ok) {
-        const errorData = await createRecipesResponse.json();
-        throw new Error(errorData.error || 'Failed to create recipes');
+      try {
+        const createRecipesResponse = await fetch('/api/meal-plans/create-recipes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recipes: allRecipes
+          }),
+        });
+        
+        let createRecipesData;
+        const createRecipesText = await createRecipesResponse.text();
+        
+        try {
+          createRecipesData = JSON.parse(createRecipesText);
+        } catch (parseError) {
+          console.error('Failed to parse create recipes response:', createRecipesText);
+          throw new Error(`Invalid response from server: ${createRecipesText.substring(0, 100)}...`);
+        }
+        
+        if (!createRecipesResponse.ok) {
+          throw new Error(createRecipesData.error || 'Failed to create recipes');
+        }
+        
+        // Get the created recipes with their database IDs
+        const { recipes: createdRecipes } = createRecipesData;
+        
+        if (!createdRecipes || !Array.isArray(createdRecipes) || createdRecipes.length === 0) {
+          throw new Error('No recipes were created');
+        }
+        
+        console.log(`Successfully created ${createdRecipes.length} recipes`);
+        
+        // Create a map for looking up recipe IDs by title
+        const recipeIdMap = new Map<string, string>();
+        createdRecipes.forEach((recipe: {id: string, originalId: string}) => {
+          recipeIdMap.set(recipe.originalId, recipe.id);
+        });
+        
+        // Step 3: Format the meal plan data
+        const startDate = new Date();
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 6); // Set end date to 7 days from now
+        
+        const formattedMeals = mealPlan.weeklyPlan.map((day, index) => {
+          // Calculate the date for this day
+          const date = new Date(startDate);
+          date.setDate(date.getDate() + index);
+          
+          // Format meals for this day
+          const meals = [];
+          
+          if (day.breakfast && formData.includeBreakfast) {
+            const recipeId = recipeIdMap.get(day.breakfast.title);
+            if (recipeId) {
+              meals.push({
+                type: 'breakfast',
+                recipe: {
+                  id: recipeId,
+                  title: day.breakfast.title,
+                }
+              });
+            }
+          }
+          
+          if (day.lunch && formData.includeLunch) {
+            const recipeId = recipeIdMap.get(day.lunch.title);
+            if (recipeId) {
+              meals.push({
+                type: 'lunch',
+                recipe: {
+                  id: recipeId,
+                  title: day.lunch.title,
+                }
+              });
+            }
+          }
+          
+          if (day.dinner && formData.includeDinner) {
+            const recipeId = recipeIdMap.get(day.dinner.title);
+            if (recipeId) {
+              meals.push({
+                type: 'dinner',
+                recipe: {
+                  id: recipeId,
+                  title: day.dinner.title,
+                }
+              });
+            }
+          }
+          
+          return {
+            date: date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+            meals,
+          };
+        });
+        
+        console.log(`Saving meal plan with ${formattedMeals.length} days...`);
+        
+        // Step 4: Call the API to save the meal plan
+        const saveMealPlanResponse = await fetch('/api/meal-plans', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: `${formData.season} Meal Plan (${startDate.toLocaleDateString()})`,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            meals: formattedMeals,
+          }),
+        });
+        
+        let saveMealPlanData;
+        const saveMealPlanText = await saveMealPlanResponse.text();
+        
+        try {
+          saveMealPlanData = JSON.parse(saveMealPlanText);
+        } catch (parseError) {
+          console.error('Failed to parse save meal plan response:', saveMealPlanText);
+          throw new Error(`Invalid response from server: ${saveMealPlanText.substring(0, 100)}...`);
+        }
+        
+        if (!saveMealPlanResponse.ok) {
+          throw new Error(saveMealPlanData.error || 'Failed to save meal plan');
+        }
+        
+        console.log('Meal plan saved successfully');
+        
+        // Step 5: Redirect to the meal plan page
+        router.push('/meal-plan');
+      } catch (createError) {
+        console.error('Error in recipe creation or meal plan saving:', createError);
+        throw createError;
       }
-      
-      // Get the created recipes with their database IDs
-      const { recipes: createdRecipes } = await createRecipesResponse.json();
-      
-      // Create a map for looking up recipe IDs by title
-      const recipeIdMap = new Map<string, string>();
-      createdRecipes.forEach((recipe: {id: string, originalId: string}) => {
-        recipeIdMap.set(recipe.originalId, recipe.id);
-      });
-      
-      // Step 3: Format the meal plan data
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 6); // Set end date to 7 days from now
-      
-      const formattedMeals = mealPlan.weeklyPlan.map((day, index) => {
-        // Calculate the date for this day
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + index);
-        
-        // Format meals for this day
-        const meals = [];
-        
-        if (day.breakfast && formData.includeBreakfast) {
-          const recipeId = recipeIdMap.get(day.breakfast.title);
-          if (recipeId) {
-            meals.push({
-              type: 'breakfast',
-              recipe: {
-                id: recipeId,
-                title: day.breakfast.title,
-              }
-            });
-          }
-        }
-        
-        if (day.lunch && formData.includeLunch) {
-          const recipeId = recipeIdMap.get(day.lunch.title);
-          if (recipeId) {
-            meals.push({
-              type: 'lunch',
-              recipe: {
-                id: recipeId,
-                title: day.lunch.title,
-              }
-            });
-          }
-        }
-        
-        if (day.dinner && formData.includeDinner) {
-          const recipeId = recipeIdMap.get(day.dinner.title);
-          if (recipeId) {
-            meals.push({
-              type: 'dinner',
-              recipe: {
-                id: recipeId,
-                title: day.dinner.title,
-              }
-            });
-          }
-        }
-        
-        return {
-          date: date.toISOString().split('T')[0], // Format as YYYY-MM-DD
-          meals,
-        };
-      });
-      
-      // Step 4: Call the API to save the meal plan
-      const saveMealPlanResponse = await fetch('/api/meal-plans', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: `${formData.season} Meal Plan (${startDate.toLocaleDateString()})`,
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          meals: formattedMeals,
-        }),
-      });
-      
-      if (!saveMealPlanResponse.ok) {
-        const errorData = await saveMealPlanResponse.json();
-        throw new Error(errorData.error || 'Failed to save meal plan');
-      }
-      
-      // Step 5: Redirect to the meal plan page
-      router.push('/meal-plan');
     } catch (error) {
       console.error('Error saving meal plan:', error);
       setError(error instanceof Error ? error.message : 'Failed to save meal plan. Please try again.');
