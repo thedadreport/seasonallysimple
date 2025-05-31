@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateWeeklyMealPlan } from '@/lib/services/claudeService';
 import prisma from '@/lib/prisma';
 
-// Set a higher timeout limit for this route
-export const maxDuration = 300; // 5 minutes in seconds
+// Set timeout within Vercel hobby plan limits
+export const maxDuration = 60; // 60 seconds (maximum for hobby plan)
 
 export async function POST(request: NextRequest) {
   try {
