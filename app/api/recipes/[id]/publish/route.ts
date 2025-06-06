@@ -96,7 +96,7 @@ export async function POST(
         id: updatedRecipe.id,
         visibility: updatedRecipe.visibility,
         moderationStatus: updatedRecipe.moderationStatus,
-        needsReview: newModerationStatus === 'PENDING',
+        needsReview: false, // Always false since we're auto-approving everything
       }
     });
     
