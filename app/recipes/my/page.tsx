@@ -232,26 +232,10 @@ export default function MyRecipesPage() {
           </li>
           <li className="mr-2">
             <button
-              className={`inline-block p-4 rounded-t-lg ${activeTab === 'pending' ? 'border-b-2 border-emerald-600 text-emerald-600' : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => handleTabChange('pending')}
-            >
-              Pending Review
-            </button>
-          </li>
-          <li className="mr-2">
-            <button
               className={`inline-block p-4 rounded-t-lg ${activeTab === 'approved' ? 'border-b-2 border-emerald-600 text-emerald-600' : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
               onClick={() => handleTabChange('approved')}
             >
               Published
-            </button>
-          </li>
-          <li>
-            <button
-              className={`inline-block p-4 rounded-t-lg ${activeTab === 'rejected' ? 'border-b-2 border-emerald-600 text-emerald-600' : 'border-transparent hover:text-gray-600 hover:border-gray-300'}`}
-              onClick={() => handleTabChange('rejected')}
-            >
-              Rejected
             </button>
           </li>
         </ul>
@@ -317,12 +301,7 @@ export default function MyRecipesPage() {
                       Private
                     </span>
                   )}
-                  {recipe.visibility === 'PUBLIC' && recipe.moderationStatus === 'PENDING' && (
-                    <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full">
-                      Pending Review
-                    </span>
-                  )}
-                  {recipe.visibility === 'PUBLIC' && recipe.moderationStatus === 'APPROVED' && (
+                  {recipe.visibility === 'PUBLIC' && (
                     <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full">
                       Published
                     </span>
@@ -330,11 +309,6 @@ export default function MyRecipesPage() {
                   {recipe.visibility === 'CURATED' && (
                     <span className="bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
                       Featured
-                    </span>
-                  )}
-                  {recipe.moderationStatus === 'REJECTED' && (
-                    <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                      Rejected
                     </span>
                   )}
                 </div>

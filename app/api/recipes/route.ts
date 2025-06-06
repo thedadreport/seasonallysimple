@@ -262,25 +262,16 @@ export async function POST(request: Request) {
       }, { status: 404 });
     }
     
-    // Determine visibility and moderation status based on user role and input
+    // Set visibility based on input or default to PRIVATE
     let visibility: RecipeVisibility = validatedData.visibility || RecipeVisibility.PRIVATE;
-    let moderationStatus: ModerationStatus;
     
-    // Admin and Moderator users can create approved public recipes directly
-    if (user.role === 'ADMIN' || user.role === 'MODERATOR') {
-      if (visibility === RecipeVisibility.PUBLIC || visibility === RecipeVisibility.CURATED) {
-        moderationStatus = ModerationStatus.APPROVED;
-      } else {
-        moderationStatus = ModerationStatus.PENDING;
-      }
-    } else {
-      // Regular users can only create PRIVATE recipes by default
-      // If they specified PUBLIC, we keep it PENDING for moderation
-      if (visibility === RecipeVisibility.CURATED) {
-        // Regular users can't create curated recipes
-        visibility = RecipeVisibility.PUBLIC;
-      }
-      moderationStatus = ModerationStatus.PENDING;
+    // Always set moderation status to APPROVED for all recipes
+    let moderationStatus: ModerationStatus = ModerationStatus.APPROVED;
+    
+    // Handle curated content restrictions
+    if (visibility === RecipeVisibility.CURATED && user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
+      // Regular users can't create curated recipes, downgrade to PUBLIC
+      visibility = RecipeVisibility.PUBLIC;
     }
     
     // Create the recipe with a transaction to ensure all related data is created

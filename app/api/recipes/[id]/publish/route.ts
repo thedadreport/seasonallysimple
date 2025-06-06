@@ -70,16 +70,8 @@ export async function POST(
       }, { status: 403 });
     }
     
-    // Determine the new moderation status
-    let newModerationStatus = recipe.moderationStatus;
-    
-    // Admins and moderators can publish directly
-    if (user.role === 'ADMIN' || user.role === 'MODERATOR') {
-      newModerationStatus = 'APPROVED';
-    } else if (recipe.visibility === 'PRIVATE') {
-      // User is publishing a private recipe - needs moderation
-      newModerationStatus = 'PENDING';
-    }
+    // Always approve all recipes immediately
+    const newModerationStatus = 'APPROVED';
     
     // Update the recipe
     const updatedRecipe = await prisma.recipe.update({
